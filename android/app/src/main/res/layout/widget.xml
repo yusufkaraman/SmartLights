@@ -1,0 +1,6 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="16dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/widget_bg">
+ <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="SmartLights" android:textColor="@color/widget_text" android:textStyle="bold" android:textSize="18sp" />
+ <Button android:id="@+id/widget_on" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Aç" />
+ <Button android:id="@+id/widget_off" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Kapat" />
+</LinearLayout>
+

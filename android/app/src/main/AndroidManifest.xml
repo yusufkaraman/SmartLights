@@ -1,0 +1,22 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <uses-permission android:name="android.permission.INTERNET" />
+ <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+ <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+ <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+ <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+ <application android:label="SmartLights" android:icon="@drawable/ic_smartlights" android:roundIcon="@drawable/ic_smartlights" android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="true" android:allowBackup="false">
+  <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+  <receiver android:name=".LightsWidget" android:label="Tüm ışıklar" android:exported="true"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info"/></receiver>
+  <receiver android:name=".WidgetAction" android:exported="false" />
+  <activity android:name=".WidgetConfigActivity" android:exported="true"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/></intent-filter></activity>
+  <receiver android:name=".DualLightsWidget" android:label="İki ışık" android:exported="true"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/dual_widget_info"/></receiver>
+  <receiver android:name=".SingleLightWidget" android:label="Tek ışık" android:exported="true"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/single_widget_info"/></receiver>
+  <receiver android:name=".ScenesWidget" android:label="Sahne şeridi" android:exported="true"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/scenes_widget_info"/></receiver>
+  <receiver android:name=".RoomWidget" android:label="Oda paneli" android:exported="true"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/room_widget_info"/></receiver>
+  <receiver android:name=".WidgetActionReceiver" android:exported="false" />
+  <receiver android:name=".TimerReceiver" android:exported="false" />
+  <receiver android:name=".CircadianReceiver" android:exported="false" />
+  <receiver android:name=".BootReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter></receiver>
+  <service android:name=".LightsTile" android:label="Işıklar" android:icon="@drawable/ic_tile" android:exported="true" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"><intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter><meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true"/></service>
+ </application>
+</manifest>

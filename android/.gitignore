@@ -1,0 +1,4 @@
+.gradle/
+app/build/
+app/libs/*-sources.jar
+local.properties

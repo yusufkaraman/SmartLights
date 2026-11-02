@@ -104,6 +104,8 @@ class DeviceListModel(QAbstractListModel):
         super().__init__(parent)
         self._worker = worker
         self._scanning = False
+        self._refresh_pending = False
+        self._credentials_changed_during_scan = False
         self._data_version = 0
         self._scanFinished.connect(self._apply_scan_result)
         self._actionFinished.connect(self._apply_action_result)
@@ -251,6 +253,13 @@ class DeviceListModel(QAbstractListModel):
             "room": state.room or _UNROOMED,
         }
 
+    @Slot(str, result="QVariant")
+    def deviceById(self, device_id: str) -> dict[str, Any]:  # noqa: N802 - QML slot adı
+        for row, state in enumerate(self._states):
+            if state.id == device_id:
+                return self.deviceAt(row)
+        return {}
+
     # ---------------- Tapo kimlik bilgileri (plan madde 9) ----------------
 
     @Slot(result=bool)
@@ -265,6 +274,8 @@ class DeviceListModel(QAbstractListModel):
             self.errorOccurred.emit("E-posta ve şifre boş olamaz")
             return
         set_tapo_credentials(email, password)
+        if self._scanning:
+            self._credentials_changed_during_scan = True
         self.refresh()
 
     # ---------------- override'lar (isim/oda) ----------------
@@ -315,6 +326,7 @@ class DeviceListModel(QAbstractListModel):
     @Slot()
     def refresh(self) -> None:
         if self._scanning:
+            self._refresh_pending = True
             return
         self._set_scanning(True)
         future = self._worker.submit(self._scan())
@@ -344,7 +356,14 @@ class DeviceListModel(QAbstractListModel):
         async def _tapo_task() -> tapo_adapter.TapoDiscoveryResult:
             if stored is None:
                 return tapo_adapter.TapoDiscoveryResult()
-            return await tapo_adapter.discover(*stored)
+            result = await tapo_adapter.discover(*stored)
+            # UDP discovery paketleri zaman zaman kaybolabilir. Daha önce
+            # bilinen Tapo cihazları bulunamadıysa kullanıcıyı yenilemeye
+            # zorlamadan bir kez daha dene.
+            if (not result.devices and not result.auth_failed and not result.error
+                    and any(s.brand == "tapo" for s in previous_by_id.values())):
+                result = await tapo_adapter.discover(*stored)
+            return result
 
         (wiz_devices, wiz_error), tapo_result = await asyncio.gather(
             wiz_adapter.discover(), _tapo_task()
@@ -383,10 +402,13 @@ class DeviceListModel(QAbstractListModel):
     @Slot(object)
     def _apply_scan_result(self, payload: Any) -> None:
         # GUI thread'de çalışır (queued connection): model mutasyonu burada güvenli.
+        credentials_changed = self._credentials_changed_during_scan
+        self._credentials_changed_during_scan = False
         if isinstance(payload, Exception):
             logger.warning("Tarama başarısız: %s", payload)
             self.errorOccurred.emit("Cihazlar taranamadı")
             self._set_scanning(False)
+            self._run_pending_refresh()
             return
 
         outcome: _ScanOutcome = payload
@@ -403,7 +425,7 @@ class DeviceListModel(QAbstractListModel):
         # Plan madde 9: WiZ/Tapo hatalarını ayrı ayrı, anlamlı şekilde bildir.
         if outcome.wiz_error:
             self.errorOccurred.emit(outcome.wiz_error)
-        if outcome.tapo_auth_failed:
+        if outcome.tapo_auth_failed and not credentials_changed:
             # Yanlış/eskimiş bilgiyi temizle ki bir daha aynı hatayı vermesin;
             # QML kimlik diyaloğunu bu sinyalle otomatik açar.
             clear_tapo_credentials()
@@ -411,7 +433,14 @@ class DeviceListModel(QAbstractListModel):
                 "Tapo kimlik bilgileri hatalı. Lütfen tekrar girin."
             )
         elif outcome.tapo_error:
-            self.errorOccurred.emit(outcome.tapo_error)
+            if not credentials_changed:
+                self.errorOccurred.emit(outcome.tapo_error)
+        self._run_pending_refresh()
+
+    def _run_pending_refresh(self) -> None:
+        if self._refresh_pending:
+            self._refresh_pending = False
+            self.refresh()
 
     @Slot(int)
     def toggle(self, row: int) -> None:

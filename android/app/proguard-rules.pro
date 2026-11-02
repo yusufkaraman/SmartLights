@@ -1,0 +1,2 @@
+-keep class bridge.** { *; }
+-keep class go.** { *; }

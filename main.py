@@ -64,13 +64,24 @@ def main() -> int:
     engine.rootContext().setContextProperty("appSettings", app_settings)
     engine.rootContext().setContextProperty("startMinimized", start_minimized)
     engine.load(UI_DIR / "Main.qml")
+    engine.load(UI_DIR / "components" / "MiniWidget.qml")
 
-    if not engine.rootObjects():
-        logging.error("QML yüklenemedi, çıkılıyor.")
+    root_objects = engine.rootObjects()
+    window = next(
+        (obj for obj in root_objects if obj.objectName() == "mainWindow"),
+        None,
+    )
+    mini_widget = next(  # noqa: F841 - engine'e ek olarak açık referans tut
+        (obj for obj in root_objects if obj.objectName() == "miniWidget"),
+        None,
+    )
+    if window is None or mini_widget is None:
+        logging.error("Ana pencere veya mini panel QML'i yüklenemedi, çıkılıyor.")
         return -1
 
-    window = engine.rootObjects()[0]
-    tray = create_tray_icon(app, window, device_model)  # noqa: F841 - referans canlı tutulmalı
+    tray = create_tray_icon(  # noqa: F841 - referans canlı tutulmalı
+        app, window, device_model, app_settings
+    )
 
     exit_code = app.exec()
     worker.stop()

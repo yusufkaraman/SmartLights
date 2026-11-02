@@ -82,6 +82,30 @@ Dialog {
                 onToggled: appSettings.startMinimized = !checked
             }
         }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 6
+
+            Text {
+                text: "Mini panel"
+                color: Theme.textPrimary
+                font.pixelSize: 14
+                font.bold: true
+            }
+
+            CheckBox {
+                text: "Masaüstü mini kontrol panelini göster"
+                checked: appSettings.miniWidgetVisible
+                onToggled: appSettings.miniWidgetVisible = checked
+            }
+
+            CheckBox {
+                text: "Mini panel her zaman üstte kalsın"
+                checked: appSettings.miniWidgetAlwaysOnTop
+                onToggled: appSettings.miniWidgetAlwaysOnTop = checked
+            }
+        }
     }
 
     footer: DialogButtonBox {

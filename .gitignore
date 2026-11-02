@@ -5,3 +5,5 @@ build/
 dist/
 *.spec
 !SmartLights.spec
+*.pfx
+*.p12

@@ -58,6 +58,17 @@ pip install -r requirements.txt
 python main.py
 ```
 
+To launch the graphical application without a console window, double-click
+`SmartLights.pyw`. It automatically uses the project's virtual environment.
+
+### Desktop mini panel
+
+Use the square-panel button in the main toolbar, the Settings dialog, or the
+SmartLights system-tray menu to show the desktop mini panel. Open the panel's
+gear menu to choose which lights appear. The selector at the top switches the
+single control surface between those lights; power, brightness, Kelvin and the
+shared color wheel always target the currently selected light.
+
 The first launch will ask for your Tapo account email/password (only if you have Tapo devices) — for WiZ, make sure **"Allow local communication"** is enabled in the WiZ app's security settings.
 
 ### Building the .exe
@@ -67,6 +78,21 @@ The first launch will ask for your Tapo account email/password (only if you have
 ```
 
 The resulting standalone `SmartLights.exe` is written to `dist/`.
+
+#### Signed Windows build (required by Smart App Control)
+
+Smart App Control does not trust an unknown unsigned executable. Build and sign
+the release with an RSA code-signing certificate issued by a provider in the
+Microsoft Trusted Root Program:
+
+```powershell
+.\build-signed.ps1 -CertificatePath C:\secure\codesigning.pfx
+```
+
+The certificate password is requested securely. The script validates the
+certificate, builds the executable, adds an SHA-256 Authenticode signature and
+timestamp, and fails unless Windows verifies the final signature as valid.
+Certificates and passwords must never be committed to this repository.
 
 ---
 
@@ -106,6 +132,17 @@ pip install -r requirements.txt
 python main.py
 ```
 
+Grafik uygulamasını konsol penceresi olmadan başlatmak için `SmartLights.pyw`
+dosyasına çift tıklayın. Dosya otomatik olarak projenin sanal ortamını kullanır.
+
+### Masaüstü mini paneli
+
+Mini paneli ana araç çubuğundaki kare panel düğmesinden, Ayarlar penceresinden
+veya SmartLights sistem tepsisi menüsünden açabilirsiniz. Paneldeki dişli
+menüsünden gösterilecek ışıkları seçin. Üstteki seçim kutusu tek kontrol alanını
+bu ışıklar arasında değiştirir; açma/kapatma, parlaklık, Kelvin ve ortak renk
+çarkı her zaman o anda seçili olan ışığı kontrol eder.
+
 İlk açılışta (yalnızca Tapo cihazınız varsa) Tapo hesap bilgilerinizi soracak — WiZ tarafında ise WiZ uygulamasının güvenlik ayarlarında **"Allow local communication"** seçeneğinin açık olması gerekir.
 
 ### `.exe` oluşturma
@@ -115,3 +152,18 @@ python main.py
 ```
 
 Oluşan tek dosyalık `SmartLights.exe`, `dist/` klasörüne yazılır.
+
+#### İmzalı Windows derlemesi (Smart App Control için gerekli)
+
+Smart App Control, tanınmayan ve imzasız bir çalıştırılabilir dosyaya güvenmez.
+Dağıtım sürümünü Microsoft Trusted Root Program kapsamındaki bir sağlayıcıdan
+alınmış RSA kod imzalama sertifikasıyla derleyip imzalayın:
+
+```powershell
+.\build-signed.ps1 -CertificatePath C:\guvenli\kod-imzalama.pfx
+```
+
+Sertifika parolası güvenli biçimde sorulur. Betik sertifikayı denetler, uygulamayı
+derler, SHA-256 Authenticode imzası ve zaman damgası ekler ve Windows son imzayı
+geçerli olarak doğrulamadıkça başarısız olur. Sertifika ve parola kesinlikle bu
+depoya eklenmemelidir.

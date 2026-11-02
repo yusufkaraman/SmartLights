@@ -138,6 +138,9 @@ def _is_auth_error(exc: Exception) -> bool:
     tespit ediyoruz.
     """
     text = str(exc)
+    # Kilitlenme veya oturum zaman aşımı yanlış parola anlamına gelmez.
+    if "TPAP_AUTH_ATTEMPTS_LIMIT" in text or "SESSION_TIMEOUT" in text:
+        return False
     return "Unauthorized" in text or "HASH_MISMATCH" in text
 
 

@@ -1,0 +1,15 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="14dp" android:background="@drawable/w_surface">
+ <LinearLayout android:id="@+id/header" android:layout_width="match_parent" android:layout_height="22dp" android:orientation="horizontal" android:gravity="center_vertical">
+  <TextView android:id="@+id/name" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Işık seçin" android:textSize="15sp" android:textStyle="bold" android:textColor="@color/w_text" android:maxLines="1" android:ellipsize="end"/>
+  <TextView android:id="@+id/level" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textSize="13sp" android:textColor="@color/w_text_var"/>
+ </LinearLayout>
+ <FrameLayout android:id="@+id/toggle" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:contentDescription="Aç veya kapat">
+  <ImageView android:id="@+id/shape" android:layout_width="72dp" android:layout_height="72dp" android:layout_gravity="center" android:src="@drawable/w_shape_on" android:importantForAccessibility="no"/>
+  <ImageView android:id="@+id/bulb" android:layout_width="30dp" android:layout_height="30dp" android:layout_gravity="center" android:src="@drawable/w_bulb_on" android:importantForAccessibility="no"/>
+ </FrameLayout>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:orientation="horizontal">
+  <TextView android:id="@+id/minus" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:background="@drawable/w_tonal_left" android:text="−" android:textSize="22sp" android:textColor="@color/w_on_tonal" android:contentDescription="Parlaklığı azalt"/>
+  <TextView android:layout_width="2dp" android:layout_height="1dp"/>
+  <TextView android:id="@+id/plus" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:background="@drawable/w_tonal_right" android:text="+" android:textSize="22sp" android:textColor="@color/w_on_tonal" android:contentDescription="Parlaklığı artır"/>
+ </LinearLayout>
+</LinearLayout>

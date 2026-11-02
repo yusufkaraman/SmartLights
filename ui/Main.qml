@@ -10,6 +10,7 @@ import "theme"
 // Sahneler" satırı eklendi (plan madde 10, 18).
 ApplicationWindow {
     id: window
+    objectName: "mainWindow"
     width: 1100
     height: 720
     // Windows başlangıcında `--minimized` ile açıldıysa pencere hiç
@@ -67,6 +68,14 @@ ApplicationWindow {
                 font.pixelSize: 16
                 enabled: !deviceModel.scanning
                 onClicked: deviceModel.refresh()
+            }
+
+            ToolButton {
+                text: "▣"
+                font.pixelSize: 16
+                ToolTip.visible: hovered
+                ToolTip.text: "Mini paneli göster"
+                onClicked: appSettings.miniWidgetVisible = true
             }
 
             ToolButton {

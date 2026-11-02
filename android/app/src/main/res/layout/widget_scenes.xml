@@ -1,0 +1,9 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:padding="12dp" android:background="@drawable/w_surface_pill">
+ <TextView android:id="@+id/scene0" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:background="@drawable/w_scene_film" android:text="Film" android:textStyle="bold" android:textSize="13sp" android:textColor="#EADDFF"/>
+ <TextView android:layout_width="6dp" android:layout_height="1dp"/>
+ <TextView android:id="@+id/scene1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:background="@drawable/w_scene_read" android:text="Okuma" android:textStyle="bold" android:textSize="13sp" android:textColor="#FFDEA6"/>
+ <TextView android:layout_width="6dp" android:layout_height="1dp"/>
+ <TextView android:id="@+id/scene2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:background="@drawable/w_scene_sleep" android:text="Uyku" android:textStyle="bold" android:textSize="13sp" android:textColor="#D1E4FF"/>
+ <TextView android:layout_width="6dp" android:layout_height="1dp"/>
+ <ImageView android:id="@+id/alloff" android:layout_width="56dp" android:layout_height="match_parent" android:background="@drawable/w_pill_tonal" android:scaleType="center" android:src="@drawable/w_power" android:contentDescription="Tümünü kapat"/>
+</LinearLayout>

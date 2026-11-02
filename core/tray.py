@@ -32,12 +32,18 @@ def _build_icon() -> QIcon:
 
 class TrayIcon(QObject):
     def __init__(
-        self, app: QApplication, window: object, device_model: object, parent: QObject | None = None
+        self,
+        app: QApplication,
+        window: object,
+        device_model: object,
+        app_settings: object,
+        parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._app = app
         self._window = window
         self._device_model = device_model
+        self._app_settings = app_settings
 
         self._tray = QSystemTrayIcon(_build_icon(), self)
         self._tray.setToolTip("SmartLights")
@@ -65,6 +71,7 @@ class TrayIcon(QObject):
                 )
 
         self._menu.addSeparator()
+        self._menu.addAction("Mini paneli göster", self._app_settings.showMiniWidget)
         self._menu.addAction("Uygulamayı Aç", self._show_window)
         self._menu.addAction("Çıkış", self._app.quit)
 
@@ -81,9 +88,14 @@ class TrayIcon(QObject):
                 self._show_window()
 
 
-def create_tray_icon(app: QApplication, window: object, device_model: object) -> TrayIcon | None:
+def create_tray_icon(
+    app: QApplication,
+    window: object,
+    device_model: object,
+    app_settings: object,
+) -> TrayIcon | None:
     """Tray simgesini oluşturur; sistem tray'i yoksa None döner, çökmez."""
     if not QSystemTrayIcon.isSystemTrayAvailable():
         logger.warning("Sistem tray'i bu ortamda mevcut değil, tray özelliği atlandı.")
         return None
-    return TrayIcon(app, window, device_model)
+    return TrayIcon(app, window, device_model, app_settings)
