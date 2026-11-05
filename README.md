@@ -25,6 +25,7 @@ SmartLights is a Windows desktop application (PySide6 + Qt Quick/QML) that disco
 - 🔐 Tapo credentials are stored in the **Windows Credential Locker** (via `keyring`), never written to disk in plain text
 - ⚙️ Optional autostart with Windows, with a "start minimized to tray" option
 - 🛡️ Graceful error handling — Wi-Fi down, firewall blocking UDP broadcast, wrong Tapo credentials, etc. all surface as clear, actionable messages instead of silent failures or crashes
+- 📱 **Android app** (~8.6 MB, in [`android/`](android/README.md)) — the same local control on the phone, an "All lights" screen that changes every bulb at once, Tapo account status, an in-app log console and home-screen widgets
 
 ### Tech stack
 
@@ -111,6 +112,7 @@ SmartLights, **WiZ** ve **Tapo** akıllı ampullerini doğrudan yerel ağınız 
 - 🔐 Tapo hesap bilgileri **Windows Credential Locker**'da saklanır (`keyring` ile), asla düz metin olarak diske yazılmaz
 - ⚙️ İsteğe bağlı Windows başlangıcında otomatik başlatma, "tray'de küçültülmüş başlat" seçeneğiyle birlikte
 - 🛡️ Düzgün hata yönetimi — Wi-Fi yok, güvenlik duvarı UDP yayınını engelliyor, yanlış Tapo şifresi gibi durumlar sessizce başarısız olmak yerine anlaşılır, aksiyon alınabilir mesajlarla bildirilir
+- 📱 **Android uygulaması** (~8.6 MB, [`android/`](android/README.md) klasöründe) — telefonda aynı yerel kontrol, tüm ampulleri birden değiştiren "Tüm ışıklar" ekranı, Tapo hesap durumu, uygulama içi kayıt konsolu ve ana ekran widget'ları
 
 ### Teknoloji seçimleri
 

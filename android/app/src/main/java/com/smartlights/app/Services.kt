@@ -54,7 +54,8 @@ class CircadianReceiver:BroadcastReceiver() {
   worker.execute {
    try {
     val c=Calendar.getInstance(); val k=Circadian.kelvinAt(c.get(Calendar.HOUR_OF_DAY)+c.get(Calendar.MINUTE)/60f)
-    store.load().forEach { l -> try { val s=Network.state(context,l); if(s.on && !s.colorMode && s.scene==0) Network.set(context,s,"kelvin",if(s.brand=="tapo") k.coerceIn(2500,6500) else k) } catch (_:Exception) {} }
+    AppLog.i("Otomasyon","Sirkadiyen ritim: beyaz ışıklar $k K'e ayarlanıyor","kelvin" to k)
+    store.load().forEach { l -> try { val s=Network.state(context,l); if(s.on && !s.colorMode && s.scene==0) Network.set(context,s,"kelvin",if(s.brand=="tapo") k.coerceIn(2500,6500) else k) else AppLog.i("Otomasyon","${s.name} atlandı (${if(!s.on) "kapalı" else "renk/sahne modunda"})","light" to s.ref()) } catch (e:Exception) { AppLog.w("Otomasyon","${l.name} sirkadiyen ayarı yapılamadı",*AppLog.errorFields(e),"light" to l.ref()) } }
    } finally { pending.finish() }
   }
  }

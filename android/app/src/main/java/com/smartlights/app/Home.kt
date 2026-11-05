@@ -51,13 +51,13 @@ fun seedColor(choice:Long,system:Color)=if(choice==0L) system else Color(choice)
 private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(0xFF6B4A00) to Color(0xFFFFDEA6),Color(0xFF1F2D3D) to Color(0xFFD1E4FF),Color(0xFF5A1F3A) to Color(0xFFFFD9E3))
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable fun Home(lights:List<Light>,favorites:Set<String>,scanning:Boolean,pending:Set<String>,scenes:List<String>,dark:Boolean,themeChoice:Long,systemSeed:Color,onRefresh:()->Unit,onOpen:(String)->Unit,onToggle:(Light,Boolean)->Unit,onAll:(Boolean)->Unit,onReady:(Ready)->Unit,onScene:(String)->Unit,onDeleteScene:(String)->Unit,onAddIp:()->Unit,onSaveScene:()->Unit,onAccount:()->Unit,onDark:(Boolean)->Unit,onTheme:(Long)->Unit,onRemove:(Light)->Unit,hiddenCount:Int,onUnhide:()->Unit) {
+@Composable fun Home(lights:List<Light>,favorites:Set<String>,scanning:Boolean,pending:Set<String>,scenes:List<String>,dark:Boolean,themeChoice:Long,systemSeed:Color,onRefresh:()->Unit,onOpen:(String)->Unit,onToggle:(Light,Boolean)->Unit,onAll:(Boolean)->Unit,onReady:(Ready)->Unit,onScene:(String)->Unit,onDeleteScene:(String)->Unit,onAddIp:()->Unit,onSaveScene:()->Unit,onAccount:()->Unit,onDark:(Boolean)->Unit,onTheme:(Long)->Unit,onRemove:(Light)->Unit,hiddenCount:Int,onUnhide:()->Unit,onLog:()->Unit) {
  val t=Amber
  var fabOpen by remember { mutableStateOf(false) }
  var themeSheet by remember { mutableStateOf(false) }
  var removing by remember { mutableStateOf<Light?>(null) }
  var allMode by remember { mutableIntStateOf(-1) }
- val sorted=remember(lights,favorites) { lights.sortedByDescending { it.id in favorites } }
+ val sorted=remember(lights,favorites) { lights.distinctBy { it.id }.sortedByDescending { it.id in favorites } }
  val online=lights.count { it.online }
  val top=WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
  val pull=rememberPullToRefreshState()
@@ -74,6 +74,8 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
         Text((if(scanning) "Ağ taranıyor · " else "")+if(lights.isEmpty()) "Henüz ışık yok" else "${lights.size} ışıktan $online'i bağlı",style=ts(15,color=InkVariant))
        }
       }
+      Surface(onClick=onLog,shape=CircleShape,color=t.cont,modifier=Modifier.size(44.dp)) { Box(contentAlignment=Alignment.Center) { Icon(icon(P.info,2f),"Kayıtlar",tint=Ink,modifier=Modifier.size(22.dp)) } }
+      Spacer(Modifier.width(10.dp))
       Switch(checked=dark,onCheckedChange=onDark,colors=toneSwitchColors(t),thumbContent={ Icon(icon(if(dark) P.moon else P.sun,2f),if(dark) "Koyu tema" else "Açık tema",Modifier.size(SwitchDefaults.IconSize),tint=if(dark) t.primary else t.onPrimary) })
      }
      Spacer(Modifier.height(20.dp))
@@ -86,6 +88,7 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
      } }
      Spacer(Modifier.height(20.dp))
     }
+    if(sorted.size>1) item(key=ALL_LIGHTS) { GroupCard(sorted,t,{ onOpen(ALL_LIGHTS) },{ onAll(it) }); Spacer(Modifier.height(10.dp)) }
     items(sorted,key={it.id}) { light -> LightCard(light,light.id in favorites,light.id in pending,t,{onOpen(light.id)},{onToggle(light,it)},{removing=light}); Spacer(Modifier.height(10.dp)) }
     item {
      Spacer(Modifier.height(10.dp))
@@ -102,8 +105,6 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
       }
       if(ask) AlertDialog(onDismissRequest={ask=false},containerColor=t.cont,titleContentColor=Ink,title={Text("\"$userName\" silinsin mi?")},confirmButton={TextButton({ask=false; onDeleteScene(userName!!)}){Text("Sil",color=t.primary)}},dismissButton={TextButton({ask=false}){Text("Vazgeç",color=Ink)}})
      }
-     Spacer(Modifier.height(8.dp))
-     Text("Kendi sahneniz için + menüsünden kaydedin; silmek için basılı tutun.",style=ts(12,color=InkVariant))
     }
    }
   }
@@ -117,7 +118,7 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
     Icon(icon(if(p>0.5f) P.close else P.plus,2f),if(fabOpen) "Menüyü kapat" else "Ekle menüsü",tint=lerp(t.onPc,t.onPrimary,p),modifier=Modifier.size(26.dp))
    }
   }) {
-   (listOf(Triple(P.link,"IP ile ışık ekle",onAddIp),Triple(P.bookmark,"Sahneyi kaydet",onSaveScene),Triple(P.account,"Tapo hesabı",onAccount))+if(hiddenCount>0) listOf(Triple(P.refresh,"Gizli ışıkları geri getir ($hiddenCount)",onUnhide)) else emptyList()).forEach { (d,label,action) ->
+   (listOf(Triple(P.link,"IP ile ışık ekle",onAddIp),Triple(P.bookmark,"Sahneyi kaydet",onSaveScene),Triple(P.account,"Tapo hesabı · "+when(TapoAccount.state.auth) { TapoAccount.Auth.Ok->"bağlı"; TapoAccount.Auth.Wrong->"şifre yanlış"; TapoAccount.Auth.Locked->"kilitli"; TapoAccount.Auth.Unknown->"doğrulanmadı"; else->"girilmedi" },onAccount))+if(hiddenCount>0) listOf(Triple(P.refresh,"Gizli ışıkları geri getir ($hiddenCount)",onUnhide)) else emptyList()).forEach { (d,label,action) ->
     FloatingActionButtonMenuItem(onClick={fabOpen=false; action()},text={Text(label,style=ts(16,FontWeight.Medium))},icon={Ico(d,t.onPc,22.dp)},containerColor=t.pc,contentColor=t.onPc)
    }
   }
@@ -170,6 +171,35 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
      Column(Modifier.weight(1f)) { Text("Salon",style=ts(16,FontWeight.Medium,t.ink)); Text("WIZ · %70",style=ts(12,color=t.inkVar)) }
      Box(Modifier.size(44.dp,26.dp).clip(CircleShape).background(t.primary))
     }
+   }
+  }
+ }
+}
+
+// Opens one detail screen whose changes go to every light at once.
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable private fun GroupCard(lights:List<Light>,t:Tone,onOpen:()->Unit,onToggle:(Boolean)->Unit) {
+ val g=groupLight(lights)
+ val on=g.on && g.online
+ val lc=Catalog.lightColor(g)
+ val ct=if(on) toneFrom(lc,t.dark) else t
+ val bg by animateColorAsState(if(on) ct.cont else t.cont,ColorTween,label="gcard")
+ val ink by animateColorAsState(ct.ink,ColorTween,label="gink"); val inkVar by animateColorAsState(ct.inkVar,ColorTween,label="ginkVar")
+ val online=lights.count { it.online }
+ Surface(onClick=onOpen,shape=RoundedCornerShape(28.dp),color=bg,modifier=Modifier.fillMaxWidth()) {
+  Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+   Row(verticalAlignment=Alignment.CenterVertically) {
+    Box(Modifier.size(52.dp)) {
+     lights.take(2).forEachIndexed { i,l -> val lit=l.on && l.online
+      MorphBlob(lit,if(lit) Catalog.lightColor(l) else if(l.online) t.high else t.bg,Modifier.size(38.dp).align(if(i==0) Alignment.TopStart else Alignment.BottomEnd),offAmp=if(l.online) 0.05f else 0f)
+     }
+    }
+    Spacer(Modifier.width(14.dp))
+    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+     Text("Tüm ışıklar",style=ts(20,FontWeight.Medium,ink),maxLines=1)
+     Text("$online/${lights.size} bağlı · "+if(on) "%${g.brightness}" else "Kapalı",style=ts(14,color=inkVar))
+    }
+    Switch(checked=on,onCheckedChange=onToggle,enabled=g.online,colors=toneSwitchColors(ct))
    }
   }
  }

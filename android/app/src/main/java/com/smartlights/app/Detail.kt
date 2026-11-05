@@ -70,36 +70,42 @@ private fun initialPick(l:Light):Pick {
 private enum class Sheet(val title:String) { White("Beyaz ışık"), Color("Renk"), Dyn("Dinamik sahneler"), Music("Müzik senkronu"), Timer("Zamanlayıcı"), Auto("Otomasyon"), Energy("Enerji"), Conn("Bağlantı teşhisi") }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class)
-@Composable fun Detail(light:Light,favorite:Boolean,store:Store,cmd:(String,Int)->Unit,onBack:()->Unit,onFavorite:(Boolean)->Unit,onRefresh:()->Unit,onRename:(String)->Unit) {
+// One screen for a single light and for "all lights": with several targets every change goes to each of them.
+@Composable fun Detail(light:Light,targets:List<Light>,favorite:Boolean,store:Store,cmd:(Light,String,Int)->Unit,onBack:()->Unit,onFavorite:(Boolean)->Unit,onRefresh:()->Unit,onRename:(String)->Unit) {
+ val group=light.brand=="group"
+ val live=if(group) targets.filter { it.online }.ifEmpty { targets } else listOf(light)
+ fun all(kind:String,value:Int)=live.forEach { cmd(it,kind,value) }
+ val tapos=live.filter { it.brand=="tapo" }
+ val minK=if(tapos.isNotEmpty()) 2500 else 2200
  val context=LocalContext.current
  var pick by remember(light.id) { mutableStateOf(initialPick(light)) }
  var level by remember(light.id) { mutableIntStateOf(light.brightness.coerceIn(1,100)) }
  LaunchedEffect(light.brightness) { level=light.brightness.coerceIn(1,100) }
  var sheet by remember { mutableStateOf<Sheet?>(null) }
  var usage by remember(light.id) { mutableStateOf<Usage?>(null) }
- LaunchedEffect(light.id) { if(light.brand=="tapo") usage=withContext(Dispatchers.IO) { try { Network.usage(context,light) } catch (_:Exception) { null } } }
+ LaunchedEffect(light.id,tapos.size) { if(tapos.isNotEmpty()) usage=withContext(Dispatchers.IO) { tapos.mapNotNull { try { Network.usage(context,it) } catch (_:Exception) { null } }.reduceOrNull { a,b -> Usage(IntArray(3) { a.minutes[it]+b.minutes[it] },IntArray(3) { a.wh[it]+b.wh[it] },IntArray(3) { a.savedWh[it]+b.savedWh[it] }) } } }
  val on=light.on && light.online
  // The whole screen, sheets included, takes its colors from what the light is showing.
  val heroColor=when(val p=pick) { is Pick.White->Catalog.kelvinColor(p.k); is Pick.C->p.color; is Pick.D->Catalog.dyns[p.i].c1; is Pick.F->Catalog.funcs[p.i].let { f -> if(f.kelvin>0) Catalog.kelvinColor(f.kelvin) else Catalog.colorOf(f.hue,f.sat) } }
  val t=animatedTone(toneFrom(heroColor,LocalTone.current.dark))
  var renaming by remember { mutableStateOf(false) }
  val statusName=when(val p=pick) { is Pick.White->"${p.k} K"; is Pick.F->Catalog.funcs[p.i].name; is Pick.C->Catalog.colors.firstOrNull { it.color==p.color }?.name ?: "Renk"; is Pick.D->Catalog.dyns[p.i].name }
- fun setLevel(v:Int) { level=v.coerceIn(1,100); cmd("brightness",level) }
- val actions=PickActions(light,cmd) { pick=it }
+ fun setLevel(v:Int) { level=v.coerceIn(1,100); all("brightness",level) }
+ val actions=PickActions(live,cmd) { pick=it }
 
  CompositionLocalProvider(LocalTone provides t) {
  Box(Modifier.fillMaxSize().background(t.bg)) {
   Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().navigationBarsPadding().padding(horizontal=16.dp).padding(top=20.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
     Surface(onClick=onBack,shape=CircleShape,color=t.cont,modifier=Modifier.size(48.dp)) { Box(contentAlignment=Alignment.Center) { Icon(icon(P.back,2f),"Geri",tint=Ink) } }
-    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).combinedClickable(onClick={renaming=true})) { Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) { Text(light.name,style=ts(24,FontWeight.SemiBold,Ink),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false)); Ico(P.pencil,InkVariant,16.dp) }; Text("${if(light.brand=="wiz") "WiZ" else "Tapo"} · ${if(!light.online) "Bağlantı bekleniyor" else if(on) statusName else "Kapalı"}",style=ts(13,color=InkVariant),maxLines=1) }
+    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).combinedClickable(enabled=!group,onClick={renaming=true})) { Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) { Text(light.name,style=ts(24,FontWeight.SemiBold,Ink),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false)); if(!group) Ico(P.pencil,InkVariant,16.dp) }; Text("${if(group) "${targets.size} ışık birlikte" else if(light.brand=="wiz") "WiZ" else "Tapo"} · ${if(!light.online) "Bağlantı bekleniyor" else if(on) statusName else "Kapalı"}",style=ts(13,color=InkVariant),maxLines=1) }
     val q=quality(light.rssi)
-    Surface(onClick={sheet=Sheet.Conn},shape=RoundedCornerShape(20.dp),color=t.cont,modifier=Modifier.height(40.dp)) { Row(Modifier.padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) { Ico(P.signal,if(light.online) Good else Outline,18.dp,2.2f); Text(if(light.online) q else "Yok",style=ts(13,FontWeight.SemiBold,if(light.online) Good else Outline)) } }
+    Surface(onClick={sheet=Sheet.Conn},shape=RoundedCornerShape(20.dp),color=t.cont,modifier=Modifier.height(40.dp)) { Row(Modifier.padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) { Ico(P.signal,if(light.online) Good else Outline,18.dp,2.2f); Text(if(group) "${targets.count { it.online }}/${targets.size}" else if(light.online) q else "Yok",style=ts(13,FontWeight.SemiBold,if(light.online) Good else Outline)) } }
     val favR by animateDpAsState(if(favorite) 16.dp else 24.dp,FastDp,label="fav")
-    Surface(onClick={onFavorite(!favorite)},shape=RoundedCornerShape(favR),color=t.cont,modifier=Modifier.size(48.dp)) { Box(contentAlignment=Alignment.Center) { Icon(icon(P.star,1.9f,favorite),"Favori",tint=t.primary,modifier=Modifier.size(22.dp)) } }
+    if(!group) Surface(onClick={onFavorite(!favorite)},shape=RoundedCornerShape(favR),color=t.cont,modifier=Modifier.size(48.dp)) { Box(contentAlignment=Alignment.Center) { Icon(icon(P.star,1.9f,favorite),"Favori",tint=t.primary,modifier=Modifier.size(22.dp)) } }
    }
 
-   Hero(on,level,heroColor,t,light.online) { cmd("power",if(on) 0 else 1) }
+   Hero(on,level,heroColor,t,light.online) { all("power",if(on) 0 else 1) }
 
    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
     Surface(onClick={setLevel(level-10)},shape=RoundedCornerShape(16.dp),color=t.tonal,modifier=Modifier.size(52.dp)) { Box(contentAlignment=Alignment.Center) { Icon(icon(P.minus,2.2f),"Parlaklığı azalt",tint=t.onTonal) } }
@@ -111,7 +117,7 @@ private enum class Sheet(val title:String) { White("Beyaz ışık"), Color("Renk
     Surface(onClick={setLevel(level+10)},shape=CircleShape,color=t.primary,modifier=Modifier.size(52.dp)) { Box(contentAlignment=Alignment.Center) { Icon(icon(P.plus,2.2f),"Parlaklığı artır",tint=t.onPrimary) } }
    }
 
-   val timerEnd=store.long("timer_${light.id}")
+   val timerEnd=store.long("timer_${live.first().id}")
    val minutesLeft=((timerEnd-System.currentTimeMillis())/60000).toInt()
    val autos=listOf(store.flag("circadian")).count { it }
    val tiles=listOf(
@@ -135,7 +141,7 @@ private enum class Sheet(val title:String) { White("Beyaz ışık"), Color("Renk
    }
    Surface(onClick={sheet=Sheet.Energy},shape=RoundedCornerShape(28.dp),color=t.cont,modifier=Modifier.fillMaxWidth().height(76.dp)) {
     Row(Modifier.padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
-     Column(Modifier.weight(1f)) { Text("Enerji · bugün",style=ts(14,FontWeight.SemiBold,Ink)); Text(usage?.let { "${hours(it.minutes[0])} açık · ${kwh(it.wh[0])}" } ?: if(light.brand=="tapo") "Yükleniyor…" else "WiZ ampuller enerji ölçmüyor",style=ts(12,color=InkVariant)) }
+     Column(Modifier.weight(1f)) { Text("Enerji · bugün",style=ts(14,FontWeight.SemiBold,Ink)); Text(usage?.let { "${hours(it.minutes[0])} açık · ${kwh(it.wh[0])}" } ?: if(tapos.isNotEmpty()) "Yükleniyor…" else "WiZ ampuller enerji ölçmüyor",style=ts(12,color=InkVariant)) }
      Ico(P.chevron,InkVariant,20.dp,2f)
     }
    }
@@ -147,14 +153,14 @@ private enum class Sheet(val title:String) { White("Beyaz ışık"), Color("Renk
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=16.dp).padding(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
      Row(verticalAlignment=Alignment.CenterVertically) { Text(s.title,style=ts(22,FontWeight.SemiBold,Ink),modifier=Modifier.weight(1f)); Button(onClick={sheet=null},colors=ButtonDefaults.buttonColors(containerColor=t.primary,contentColor=t.onPrimary)) { Text("Tamam",style=ts(14,FontWeight.SemiBold)) } }
      when(s) {
-      Sheet.White->WhiteSheet(light,pick,t,store,actions)
+      Sheet.White->WhiteSheet(light,minK,pick,t,store,actions)
       Sheet.Color->ColorSheet(pick,t,store,actions)
       Sheet.Dyn->DynSheet(pick,t,actions)
       Sheet.Music->Soon("Müzik senkronu","Telefon mikrofonu ritmi dinleyip ışığı ona göre değiştirecek. Mikrofon izni gerekecek; ses kaydedilmeyecek.",t)
-      Sheet.Timer->TimerSheet(light,t,store)
+      Sheet.Timer->TimerSheet(live,t,store)
       Sheet.Auto->AutoSheet(t,store)
-      Sheet.Energy->EnergySheet(light,usage,t)
-      Sheet.Conn->ConnSheet(light,t,onRefresh)
+      Sheet.Energy->EnergySheet(tapos.isNotEmpty(),usage,t,group)
+      Sheet.Conn->ConnSheet(if(group) targets else listOf(light),t,onRefresh)
      }
     }
    }
@@ -168,11 +174,12 @@ private enum class Sheet(val title:String) { White("Beyaz ışık"), Color("Renk
  }
 }
 
-class PickActions(private val light:Light,private val cmd:(String,Int)->Unit,private val onPick:(Pick)->Unit) {
- fun white(k:Int) { val kk=if(light.brand=="tapo") k.coerceIn(2500,6500) else k.coerceIn(2200,6500); onPick(Pick.White(kk)); cmd("kelvin",kk) }
- fun func(i:Int) { val f=Catalog.funcs[i]; onPick(Pick.F(i)); if(light.brand=="wiz") cmd("scene",f.wiz) else { if(f.kelvin>0) cmd("kelvin",f.kelvin.coerceIn(2500,6500)) else cmd("color",f.hue*101+f.sat); cmd("brightness",f.bri) } }
- fun color(c:Color,tone:Int) { val (h,s)=Catalog.hueSat(c); onPick(Pick.C(c,tone)); cmd("color",h*101+s) }
- fun dyn(i:Int) { val d=Catalog.dyns[i]; onPick(Pick.D(i)); if(light.brand=="wiz") cmd("scene",d.wiz) else { val (h,s)=Catalog.hueSat(d.c1); cmd("color",h*101+s) } }
+class PickActions(private val lights:List<Light>,private val cmd:(Light,String,Int)->Unit,private val onPick:(Pick)->Unit) {
+ private fun kFor(l:Light,k:Int)=if(l.brand=="tapo") k.coerceIn(2500,6500) else k.coerceIn(2200,6500)
+ fun white(k:Int) { onPick(Pick.White(if(lights.all { it.brand=="tapo" }) k.coerceIn(2500,6500) else k.coerceIn(2200,6500))); lights.forEach { cmd(it,"kelvin",kFor(it,k)) } }
+ fun func(i:Int) { val f=Catalog.funcs[i]; onPick(Pick.F(i)); lights.forEach { l -> if(l.brand=="wiz") cmd(l,"scene",f.wiz) else { if(f.kelvin>0) cmd(l,"kelvin",kFor(l,f.kelvin)) else cmd(l,"color",f.hue*101+f.sat); cmd(l,"brightness",f.bri) } } }
+ fun color(c:Color,tone:Int) { val (h,s)=Catalog.hueSat(c); onPick(Pick.C(c,tone)); lights.forEach { cmd(it,"color",h*101+s) } }
+ fun dyn(i:Int) { val d=Catalog.dyns[i]; onPick(Pick.D(i)); val (h,s)=Catalog.hueSat(d.c1); lights.forEach { l -> if(l.brand=="wiz") cmd(l,"scene",d.wiz) else cmd(l,"color",h*101+s) } }
 }
 
 @Composable private fun Hero(on:Boolean,level:Int,color:Color,t:Tone,online:Boolean,onToggle:()->Unit) {
@@ -194,7 +201,7 @@ class PickActions(private val light:Light,private val cmd:(String,Int)->Unit,pri
 @Composable private fun Label(text:String,hint:String?=null) { Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Bottom) { Text(text,style=ts(15,FontWeight.SemiBold,Ink),modifier=Modifier.weight(1f)); hint?.let { Text(it,style=ts(13,color=InkVariant)) } } }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
-@Composable private fun WhiteSheet(light:Light,pick:Pick,t:Tone,store:Store,a:PickActions) {
+@Composable private fun WhiteSheet(light:Light,minK:Int,pick:Pick,t:Tone,store:Store,a:PickActions) {
  var presets by remember { mutableStateOf(store.presets()) }
  val all=Catalog.whites+presets
  val current=(pick as? Pick.White)?.k
@@ -213,7 +220,7 @@ class PickActions(private val light:Light,private val cmd:(String,Int)->Unit,pri
   }
  }
  Label("Ton",(current ?: light.kelvin).toString()+" K")
- KelvinBar(current ?: light.kelvin,if(light.brand=="tapo") 2500 else 2200) { a.white(it) }
+ KelvinBar(current ?: light.kelvin,minK) { a.white(it) }
  Text("Kaydettiğiniz tonu silmek için üzerine basılı tutun.",style=ts(12,color=InkVariant))
  Label("İşlevsel")
  FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -290,13 +297,14 @@ class PickActions(private val light:Light,private val cmd:(String,Int)->Unit,pri
  Surface(shape=RoundedCornerShape(24.dp),color=t.tonal,modifier=Modifier.fillMaxWidth()) { Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) { Ico(P.mic,t.primary,28.dp); Text("$title · Yakında",style=ts(17,FontWeight.SemiBold,t.onTonal)); Text(text,style=ts(14,color=t.onTonal)) } }
 }
 
-@Composable private fun TimerSheet(light:Light,t:Tone,store:Store) {
+@Composable private fun TimerSheet(lights:List<Light>,t:Tone,store:Store) {
+ val light=lights.first()
  val context=LocalContext.current
  val opts=listOf(15,30,60,0)
  var sel by remember { mutableIntStateOf(if(store.long("timer_${light.id}")>System.currentTimeMillis()) opts.indexOf(store.int("timer_min_${light.id}")).coerceAtLeast(0) else 3) }
  Label("Kapanma zamanı")
- ConnectedGroup(listOf("15 dk","30 dk","1 sa","Kapalı"),sel,t,{ sel=it; Timers.schedule(context,light,opts[it]) },Modifier.fillMaxWidth(),height=52.dp)
- Text(if(sel==3) "Zamanlayıcı kapalı" else "${light.name} ${listOf("15 dakika","30 dakika","1 saat")[sel]} sonra kapanacak",style=ts(13,color=InkVariant))
+ ConnectedGroup(listOf("15 dk","30 dk","1 sa","Kapalı"),sel,t,{ sel=it; lights.forEach { l -> Timers.schedule(context,l,opts[it]) } },Modifier.fillMaxWidth(),height=52.dp)
+ Text(if(sel==3) "Zamanlayıcı kapalı" else "${if(lights.size>1) "Tüm ışıklar" else light.name} ${listOf("15 dakika","30 dakika","1 saat")[sel]} sonra kapanacak",style=ts(13,color=InkVariant))
  Label("Yumuşak geçiş","Yakında")
  ConnectedGroup(listOf("Anında","1 sn","2 sn"),0,t,{},Modifier.fillMaxWidth(),height=44.dp,textSize=13,enabled=false)
 }
@@ -317,9 +325,9 @@ class PickActions(private val light:Light,private val cmd:(String,Int)->Unit,pri
  }
 }
 
-@Composable private fun EnergySheet(light:Light,usage:Usage?,t:Tone) {
+@Composable private fun EnergySheet(hasTapo:Boolean,usage:Usage?,t:Tone,group:Boolean) {
  var tab by remember { mutableIntStateOf(0) }
- if(light.brand!="tapo") { Text("WiZ ampuller enerji tüketimini ölçmez. Bu bilgi yalnızca Tapo ampullerde gösterilir.",style=ts(14,color=InkVariant)); return }
+ if(!hasTapo) { Text("WiZ ampuller enerji tüketimini ölçmez. Bu bilgi yalnızca Tapo ampullerde gösterilir.",style=ts(14,color=InkVariant)); return }
  ConnectedGroup(listOf("Bugün","7 gün","30 gün"),tab,t,{tab=it},Modifier.fillMaxWidth(),height=40.dp,textSize=13)
  if(usage==null) { Text("Veri alınamadı. Tapo hesabını ve bağlantıyı kontrol edin.",style=ts(14,color=InkVariant)); return }
  Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -327,17 +335,19 @@ class PickActions(private val light:Light,private val cmd:(String,Int)->Unit,pri
    Surface(shape=RoundedCornerShape(18.dp),color=t.tonal,modifier=Modifier.weight(1f)) { Column(Modifier.padding(12.dp)) { Text(k,style=ts(11,color=t.onTonal)); Text(v,style=ts(18,FontWeight.Medium,Ink)) } }
   }
  }
- Text("Tasarruf, aynı ışığı veren klasik ampule göre hesaplanır (Tapo verisi).",style=ts(12,color=InkVariant))
+ Text((if(group) "Yalnızca Tapo ampullerin toplamıdır; WiZ ampuller ölçüm yapmaz. " else "")+"Tasarruf, aynı ışığı veren klasik ampule göre hesaplanır (Tapo verisi).",style=ts(12,color=InkVariant))
 }
 
-@Composable private fun ConnSheet(light:Light,t:Tone,onRefresh:()->Unit) {
+@Composable private fun ConnSheet(lights:List<Light>,t:Tone,onRefresh:()->Unit) {
  val context=LocalContext.current
- var diag by remember { mutableStateOf<Diagnosis?>(null) }
+ var diags by remember { mutableStateOf<Map<String,Diagnosis>>(emptyMap()) }
  var run by remember { mutableIntStateOf(0) }
- LaunchedEffect(run) { diag=null; diag=withContext(Dispatchers.IO) { Network.diagnose(context,light) } }
- val d=diag
- val rows=listOf("Durum" to (d?.let { if(it.ok) "Bağlı" else "Ulaşılamıyor" } ?: "Test ediliyor…"),"IP adresi" to light.ip,"Sinyal" to (d?.rssi?.let { "$it dBm · ${quality(it)}" } ?: "—"),"Yanıt süresi" to (d?.pingMs?.let { "$it ms" } ?: "—"),"Model" to light.model.ifBlank { light.brand.uppercase() })
- rows.forEach { (k,v) -> Row(Modifier.fillMaxWidth().height(36.dp),verticalAlignment=Alignment.CenterVertically) { Text(k,style=ts(15,color=InkVariant),modifier=Modifier.weight(1f)); Text(v,style=ts(15,color=Ink)) } }
+ LaunchedEffect(run) { diags=emptyMap(); lights.forEach { l -> val d=withContext(Dispatchers.IO) { Network.diagnose(context,l) }; diags=diags+(l.id to d) } }
+ lights.forEach { light -> val d=diags[light.id]
+  if(lights.size>1) Text(light.name,style=ts(16,FontWeight.SemiBold,Ink))
+  val rows=listOf("Durum" to (d?.let { if(it.ok) "Bağlı" else "Ulaşılamıyor" } ?: "Test ediliyor…"),"IP adresi" to light.ip,"Sinyal" to (d?.rssi?.let { "$it dBm · ${quality(it)}" } ?: "—"),"Yanıt süresi" to (d?.pingMs?.let { "$it ms" } ?: "—"),"Model" to light.model.ifBlank { light.brand.uppercase() })
+  rows.forEach { (k,v) -> Row(Modifier.fillMaxWidth().height(36.dp),verticalAlignment=Alignment.CenterVertically) { Text(k,style=ts(15,color=InkVariant),modifier=Modifier.weight(1f)); Text(v,style=ts(15,color=Ink)) } }
+ }
  Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
   FilledTonalButton(onClick={run++},modifier=Modifier.weight(1f).height(48.dp),colors=ButtonDefaults.filledTonalButtonColors(containerColor=t.tonal,contentColor=t.onTonal)) { Text("Test et",style=ts(14,FontWeight.SemiBold)) }
   Button(onClick={onRefresh(); run++},modifier=Modifier.weight(1f).height(48.dp),colors=ButtonDefaults.buttonColors(containerColor=t.primary,contentColor=t.onPrimary)) { Text("Yeniden bağlan",style=ts(14,FontWeight.SemiBold)) }
