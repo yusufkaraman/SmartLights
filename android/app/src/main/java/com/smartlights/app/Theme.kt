@@ -85,6 +85,7 @@ object P {
  const val mic="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M5 11a7 7 0 0 0 14 0 M12 18v3"
  const val pencil="M4 20h4L19 9l-4-4L4 16z M14 6l4 4"
  const val check="M5 12l5 5 9-10"
+ const val info="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 7.5v.5"
  const val photo="M4 5h16v14H4z M4 15l4-4 4 4 3-3 5 5"
  val sceneIcons=listOf("M4 4h16v16H4z M8 4v16 M16 4v16 M4 9h4 M4 15h4 M16 9h4 M16 15h4","M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z M19 19v2H6",moon,sparkle)
 }

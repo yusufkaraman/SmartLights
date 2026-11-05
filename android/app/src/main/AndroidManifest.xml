@@ -17,6 +17,7 @@
   <receiver android:name=".TimerReceiver" android:exported="false" />
   <receiver android:name=".CircadianReceiver" android:exported="false" />
   <receiver android:name=".BootReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter></receiver>
+  <provider android:name="androidx.core.content.FileProvider" android:authorities="com.smartlights.app.logs" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/log_paths"/></provider>
   <service android:name=".LightsTile" android:label="Işıklar" android:icon="@drawable/ic_tile" android:exported="true" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"><intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter><meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true"/></service>
  </application>
 </manifest>
