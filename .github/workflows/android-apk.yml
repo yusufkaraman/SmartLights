@@ -45,9 +45,9 @@ jobs:
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/signing.keystore"
           echo "SIGNING_KEYSTORE=$RUNNER_TEMP/signing.keystore" >> "$GITHUB_ENV"
 
-      - name: Build release APK
+      - name: Test and build release APK
         working-directory: android
-        run: gradle assembleRelease --no-daemon
+        run: gradle testReleaseUnitTest assembleRelease --no-daemon
 
       # Public fingerprint of the key the phone's installed app is signed with (not a secret).
       - name: Check signing certificate
