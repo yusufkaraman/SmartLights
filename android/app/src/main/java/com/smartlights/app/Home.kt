@@ -58,7 +58,7 @@ fun seedColor(choice:Long,system:Color)=if(choice==0L) system else Color(choice)
 private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(0xFF6B4A00) to Color(0xFFFFDEA6),Color(0xFF1F2D3D) to Color(0xFFD1E4FF),Color(0xFF5A1F3A) to Color(0xFFFFD9E3))
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable fun Home(lights:List<Light>,favorites:Set<String>,scanning:Boolean,pending:Set<String>,scenes:List<String>,dark:Boolean,themeChoice:Long,systemSeed:Color,onRefresh:()->Unit,onOpen:(String)->Unit,onToggle:(Light,Boolean)->Unit,onAll:(Boolean)->Unit,onReady:(Ready)->Unit,onScene:(String)->Unit,onDeleteScene:(String)->Unit,onAddIp:()->Unit,onSaveScene:()->Unit,onAccount:()->Unit,onDark:(Boolean)->Unit,onTheme:(Long)->Unit,onRemove:(Light)->Unit,hiddenCount:Int,onUnhide:()->Unit,onLog:()->Unit,assistant:AssistantUi=AssistantUi(),onAsk:(String)->Unit={},onVoice:()->Unit={},onLevel:(Light?,Int)->Unit={ _,_ -> }) {
+@Composable fun Home(lights:List<Light>,favorites:Set<String>,scanning:Boolean,pending:Set<String>,scenes:List<String>,dark:Boolean,themeChoice:Long,systemSeed:Color,onRefresh:()->Unit,onOpen:(String)->Unit,onToggle:(Light,Boolean)->Unit,onAll:(Boolean)->Unit,onReady:(Ready)->Unit,onScene:(String)->Unit,onDeleteScene:(String)->Unit,onAddIp:()->Unit,onSaveScene:()->Unit,onAccount:()->Unit,onDark:(Boolean)->Unit,onTheme:(Long)->Unit,onRemove:(Light)->Unit,hiddenCount:Int,onUnhide:()->Unit,onLog:()->Unit,assistant:AssistantUi=AssistantUi(),onAsk:(String)->Unit={},onVoice:()->Unit={},voice:Voice?=null,onLevel:(Light?,Int)->Unit={ _,_ -> }) {
  val t=Amber
  var fabOpen by remember { mutableStateOf(false) }
  var themeSheet by remember { mutableStateOf(false) }
@@ -88,7 +88,7 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
      Spacer(Modifier.height(20.dp))
      ConnectedGroup(listOf("Tümünü aç","Tümünü kapat"),allMode,t,{ allMode=it; onAll(it==0) },Modifier.fillMaxWidth(),height=56.dp,grow=1.35f,textSize=16)
      Spacer(Modifier.height(12.dp))
-     if(lights.isNotEmpty()) { AskBar(assistant,t,onAsk,onVoice); Spacer(Modifier.height(20.dp)) } else Spacer(Modifier.height(8.dp))
+     if(lights.isNotEmpty()) { AskBar(assistant,t,onAsk,onVoice,voice); Spacer(Modifier.height(20.dp)) } else Spacer(Modifier.height(8.dp))
     }
     if(lights.isEmpty()) item {
      Surface(shape=RoundedCornerShape(28.dp),color=t.cont) { Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -186,24 +186,31 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
 
 // Typed commands such as "salonu loş sıcak beyaz yap"; Gemini Nano reads them when the phone has it.
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable private fun AskBar(a:AssistantUi,t:Tone,onAsk:(String)->Unit,onVoice:()->Unit) {
+@Composable private fun AskBar(a:AssistantUi,t:Tone,onAsk:(String)->Unit,onVoice:()->Unit,voice:Voice?) {
+ val listening=voice?.phase==Voice.Phase.Listening; val speaking=voice?.phase==Voice.Phase.Speaking
  var text by remember { mutableStateOf("") }
  val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
  fun send() { if(text.isNotBlank() && !a.busy) { onAsk(text.trim()); keyboard?.hide() } }
  Surface(shape=RoundedCornerShape(28.dp),color=t.cont,modifier=Modifier.fillMaxWidth()) {
   Column(Modifier.padding(start=16.dp,end=8.dp,top=6.dp,bottom=12.dp)) {
    Row(verticalAlignment=Alignment.CenterVertically) {
-    Ico(P.sparkle,t.primary,22.dp)
-    TextField(text,{ text=it },modifier=Modifier.weight(1f),singleLine=true,textStyle=ts(16,color=Ink),placeholder={ Text("Örn: salonu loş sıcak beyaz yap",style=ts(15,color=InkVariant),maxLines=1,overflow=TextOverflow.Ellipsis) },
+    // The orb shows what the assistant is doing: listening to the voice, thinking (Gemini Nano), or answering.
+    Box(Modifier.size(28.dp),contentAlignment=Alignment.Center) {
+     androidx.compose.animation.Crossfade(when { listening->OrbState.Listening; a.busy->OrbState.Solving; speaking->OrbState.Breathing; else->null },label="orb") { st ->
+      if(st==null) Ico(P.sparkle,t.primary,22.dp) else Orb(st,t.primary,size=28.dp,level={ voice?.level ?: 0f })
+     }
+    }
+    TextField(if(listening) voice?.partial ?: "" else text,{ if(!listening) text=it },readOnly=listening,modifier=Modifier.weight(1f),singleLine=true,textStyle=ts(16,color=Ink),placeholder={ Text(if(listening) "Dinliyorum…" else "Örn: salonu loş sıcak beyaz yap",style=ts(15,color=InkVariant),maxLines=1,overflow=TextOverflow.Ellipsis) },
      keyboardOptions=KeyboardOptions(imeAction=ImeAction.Send),keyboardActions=KeyboardActions(onSend={ send() }),
      colors=TextFieldDefaults.colors(focusedContainerColor=Color.Transparent,unfocusedContainerColor=Color.Transparent,focusedIndicatorColor=Color.Transparent,unfocusedIndicatorColor=Color.Transparent,cursorColor=t.primary))
     Box(Modifier.size(44.dp),contentAlignment=Alignment.Center) {
-     if(a.busy) LoadingIndicator(Modifier.size(32.dp),color=t.primary)
-     // Empty field: the button listens instead (speech → Gemini Nano → spoken reply).
-     else Surface(onClick={ if(text.isNotBlank()) send() else onVoice() },shape=CircleShape,color=t.primary,modifier=Modifier.size(40.dp)) { Box(contentAlignment=Alignment.Center) { if(text.isNotBlank()) Ico(P.chevron,t.onPrimary,20.dp,2.2f) else Ico(P.mic,t.onPrimary,20.dp,2f) } }
+     // Empty field: the button listens (speech → Gemini Nano → spoken reply); while listening it finishes.
+     if(!a.busy) Surface(onClick={ if(listening) onVoice() else if(text.isNotBlank()) send() else onVoice() },shape=if(listening) RoundedCornerShape(14.dp) else CircleShape,color=if(listening) t.tonal else t.primary,modifier=Modifier.size(40.dp)) {
+      Box(contentAlignment=Alignment.Center) { when { listening->Ico(P.check,t.onTonal,20.dp,2.2f); text.isNotBlank()->Ico(P.chevron,t.onPrimary,20.dp,2.2f); else->Ico(P.mic,t.onPrimary,20.dp,2f) } }
+     }
     }
    }
-   Text(a.reply ?: a.status,style=ts(13,color=InkVariant),maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(start=34.dp,end=8.dp))
+   Text(if(listening) "Dinliyorum · bitince ✓'ye dokun ya da sus" else a.reply ?: a.status,style=ts(13,color=InkVariant),maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(start=34.dp,end=8.dp))
   }
  }
 }

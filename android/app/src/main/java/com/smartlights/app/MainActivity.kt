@@ -119,8 +119,8 @@ private fun optimistic(l:Light,kind:String,v:Int)=when(kind) { "power"->l.copy(o
  } }
  var assistant by remember { mutableStateOf(AssistantUi()) }
  LaunchedEffect(Unit) { Assistant.prepare { assistant=it } }
- // Voice: Android's speech recognizer (Turkish, offline when the language pack is installed) gives the text,
- // the same assistant reads it, and the result is spoken back. No extra library, no microphone permission.
+ // Voice: Android's speech recognizer (on-device on Pixel) gives the text inside the app,
+ // the same assistant reads it, and the result is spoken back. Asks for the microphone permission once.
  val voice=remember { Voice(context) }
  DisposableEffect(Unit) { onDispose { voice.close() } }
  fun ask(text:String,speak:Boolean=false) { scope.launch {
@@ -138,11 +138,16 @@ private fun optimistic(l:Light,kind:String,v:Int)=when(kind) { "power"->l.copy(o
   assistant=assistant.copy(busy=false,reply=Assistant.describe(plan))
   if(speak) voice.say(Assistant.describe(plan))
  } }
- val listen=androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r ->
-  val heard=r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-  if(heard.isNullOrBlank()) AppLog.i("Asistan","Sesli komut alınamadı","result" to r.resultCode) else { AppLog.i("Asistan","Sesli komut: \"$heard\""); ask(heard,speak=true) }
+ fun listenNow() { voice.listen({ heard -> AppLog.i("Asistan","Sesli komut: \"$heard\""); ask(heard,speak=true) },{ msg -> assistant=assistant.copy(busy=false,reply=msg) }) }
+ val micPermission=androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+  if(ok) listenNow() else assistant=assistant.copy(reply="Sesli komut için mikrofon izni gerekli")
  }
- fun startVoice() { try { listen.launch(Voice.intent()) } catch(e:android.content.ActivityNotFoundException) { error="Bu telefonda konuşma tanıma bulunamadı" } }
+ // Tap the mic: listen inside the app (orb + live text). Tap again while listening: finish and send what was heard.
+ fun startVoice() {
+  if(voice.phase==Voice.Phase.Listening) { voice.stop(); return }
+  if(androidx.core.content.ContextCompat.checkSelfPermission(context,android.Manifest.permission.RECORD_AUDIO)==android.content.pm.PackageManager.PERMISSION_GRANTED) listenNow()
+  else micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+ }
  LaunchedEffect(active) { if(active) { refresh(); while(true) { delay(30000); refresh() } } }
  var dark by remember { mutableStateOf(!store.flag("light_mode")) }
  var themeChoice by remember { mutableLongStateOf(store.long("theme_seed")) }
@@ -160,7 +165,7 @@ private fun optimistic(l:Light,kind:String,v:Int)=when(kind) { "power"->l.copy(o
   Box(Modifier.fillMaxSize().background(Amber.bg)) {
    AnimatedContent(targetState=current?.id,transitionSpec={ (fadeIn(tween(180))+slideInHorizontally(tween(260)) { if(targetState!=null) it/6 else -it/6 }) togetherWith fadeOut(tween(120)) },label="screen") { id ->
     val light=resolve(id)
-    if(light==null) Home(lights,favorites,scanning,pending,sceneNames,dark,themeChoice,systemSeed,{ scope.launch { refresh() } },{ selected=it },{ l,on -> command(l,"power",if(on) 1 else 0) },{ on -> lights.filter { it.online }.forEach { command(it,"power",if(on) 1 else 0) } },{ applyReady(it) },{ applyScene(it) },{ store.removeScene(it); sceneNames=store.scenes().keys().asSequence().toList() },{ manual=true },{ saveScene=true },{ credentials=true },{ dark=it; store.putFlag("light_mode",!it) },{ themeChoice=it; store.putLong("theme_seed",it) },{ l -> store.hide(l); hiddenCount=store.hidden().size; lights=lights.filter { it.id!=l.id }; DualLightsWidget.renderAll(context) },hiddenCount,{ store.unhideAll(); hiddenCount=0; scope.launch { refresh() } },{ logs=true },assistant,{ ask(it) },{ startVoice() },{ l,v -> (if(l==null) lights.filter { it.online && it.on } else listOf(l)).forEach { command(it,"brightness",v,instant=true) } })
+    if(light==null) Home(lights,favorites,scanning,pending,sceneNames,dark,themeChoice,systemSeed,{ scope.launch { refresh() } },{ selected=it },{ l,on -> command(l,"power",if(on) 1 else 0) },{ on -> lights.filter { it.online }.forEach { command(it,"power",if(on) 1 else 0) } },{ applyReady(it) },{ applyScene(it) },{ store.removeScene(it); sceneNames=store.scenes().keys().asSequence().toList() },{ manual=true },{ saveScene=true },{ credentials=true },{ dark=it; store.putFlag("light_mode",!it) },{ themeChoice=it; store.putLong("theme_seed",it) },{ l -> store.hide(l); hiddenCount=store.hidden().size; lights=lights.filter { it.id!=l.id }; DualLightsWidget.renderAll(context) },hiddenCount,{ store.unhideAll(); hiddenCount=0; scope.launch { refresh() } },{ logs=true },assistant,{ ask(it) },{ startVoice() },voice,{ l,v -> (if(l==null) lights.filter { it.online && it.on } else listOf(l)).forEach { command(it,"brightness",v,instant=true) } })
     else Detail(light,if(light.id==ALL_LIGHTS) lights else listOf(light),light.id in favorites,store,{ l,kind,value -> command(l,kind,value) },{ l,kind,value -> command(l,kind,value,instant=true) },{ setFade(it) },{ selected=null },{ fav -> store.setFavorite(light.id,fav); favorites=store.favorites() },{ scope.launch { refresh() } },{ name -> store.setName(light.id,name); lights=store.named(lights); store.save(lights); DualLightsWidget.renderAll(context) })
    }
   }

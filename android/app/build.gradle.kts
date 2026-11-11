@@ -26,5 +26,6 @@ dependencies {
     implementation(files("libs/bridge.aar"))
     // Gemini Nano via AICore: the model lives in the system, only the client library ships in the APK.
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta5")
+    testImplementation("junit:junit:4.13.2")
 }
 

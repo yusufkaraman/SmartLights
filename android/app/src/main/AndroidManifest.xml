@@ -4,8 +4,10 @@
  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
  <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+ <uses-permission android:name="android.permission.RECORD_AUDIO" />
  <!-- Voice commands: find the speech recognizer and the text-to-speech engine (Android 11+ package visibility). -->
  <queries>
+  <intent><action android:name="android.speech.RecognitionService" /></intent>
   <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH" /></intent>
   <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
  </queries>
