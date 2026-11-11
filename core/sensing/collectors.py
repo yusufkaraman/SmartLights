@@ -261,4 +261,45 @@ async def ble_scan(emit: Emit) -> None:
         await asyncio.Event().wait()
 
 
+# --- Telefon Wi-Fi (kablosuz hata ayıklama üzerinden, uygulama değişikliği gerekmez) ----------------------------
+
+async def phone_wifi(adb: str, serial: str, hz: float, emit: Emit) -> None:
+    """Telefonun bağlı olduğu AP'den ölçtüğü RSSI ve bağlantı hızını ``adb shell cmd wifi status`` ile okur.
+
+    Telefon burada sabit bir radyo düğümüdür (ör. masada); yakınlığı "insan var" sayılmaz.
+    """
+    import re
+
+    period = 1.0 / hz
+    while True:
+        t0 = time.perf_counter()
+        try:
+            proc = await asyncio.create_subprocess_exec(adb, "-s", serial, "shell", "cmd", "wifi", "status",
+                                                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=3)
+            text = out.decode(errors="replace")
+            rssi = re.search(r"RSSI: ?(-?\d+)", text)
+            speed = re.search(r"Link speed: ?(\d+)", text)
+            emit({"src": "phone_wifi", "rssi": int(rssi.group(1)) if rssi else None,
+                  "mbps": int(speed.group(1)) if speed else None, "rtt_ms": round((time.perf_counter() - t0) * 1000, 1)})
+        except Exception as exc:
+            emit({"src": "phone_wifi", "error": type(exc).__name__})
+        await asyncio.sleep(max(0.0, period - (time.perf_counter() - t0)))
+
+
+def find_adb_device(adb: str) -> str | None:
+    """Bağlı ilk adb cihazının seri numarası (kablosuz hata ayıklama: ip:port)."""
+    import subprocess
+
+    try:
+        out = subprocess.run([adb, "devices"], capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return None
+    for line in out.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) == 2 and parts[1] == "device":
+            return parts[0]
+    return None
+
+
 Collector = Callable[..., Awaitable[None]]

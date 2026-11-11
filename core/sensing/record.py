@@ -4,7 +4,8 @@
     .venv\\Scripts\\python -m core.sensing.record --wiz-mac <MAC> --tapo-ip <IP> --minutes 30 --note "bos oda"
 
 Kaynakları ``--sources`` ile seçin (varsayılan: hepsi). Kayıt sırasında tuşlar gerçek durumu etiketler:
-    g giriş · c çıkış · k kapı önünden geçiş · o oturuyor · u uyku · f fan/perde · b oda boş · q bitir
+    g giriş · c çıkış · k kapı önünden geçiş · y odada yürüyor · a ayakta duruyor · o oturuyor · u uyku
+    f fan/perde · m ışığı elle değiştirdim · b oda boş · q bitir
 Çıktı: %LOCALAPPDATA%\\SmartLights\\sensing\\<tarih-saat>.jsonl (depoya girmez; MAC/IP içerir).
 """
 
@@ -22,8 +23,9 @@ from pathlib import Path
 
 from core.sensing import collectors as c
 
-LABELS = {"g": "giris", "c": "cikis", "k": "kapi_onu", "o": "oturuyor", "u": "uyku", "f": "fan_perde", "b": "bos"}
-SOURCES = ("wiz_poll", "wiz_push", "tapo", "pc_wifi", "pc_idle", "ble")
+LABELS = {"g": "giris", "c": "cikis", "k": "kapi_onu", "o": "oturuyor", "u": "uyku", "f": "fan_perde", "b": "bos",
+          "y": "yuruyor", "m": "manuel_isik", "a": "ayakta_duruyor"}
+SOURCES = ("wiz_poll", "wiz_push", "tapo", "pc_wifi", "pc_idle", "ble", "phone_wifi")
 
 
 def out_dir() -> Path:
@@ -86,6 +88,12 @@ async def run(args: argparse.Namespace) -> Path:
         tasks.append(c.pc_idle(1.0, rec.emit))
     if "ble" in want:
         tasks.append(c.ble_scan(rec.emit))
+    if "phone_wifi" in want:
+        serial = c.find_adb_device(args.adb)
+        if serial:
+            tasks.append(c.phone_wifi(args.adb, serial, 1.0, rec.emit))
+        else:
+            print("Telefon adb ile bağlı değil (kablosuz hata ayıklama); phone_wifi atlandı.")
 
     stop = threading.Event()
     if sys.stdin.isatty():
@@ -121,6 +129,8 @@ def main() -> None:
     p.add_argument("--tapo-hz", type=float, default=1)
     p.add_argument("--sources", nargs="+", default=list(SOURCES), choices=SOURCES)
     p.add_argument("--note", default="")
+    default_adb = Path(os.environ.get("LOCALAPPDATA", "")) / "Android" / "sdk" / "platform-tools" / "adb.exe"
+    p.add_argument("--adb", default=str(default_adb), help="adb yolu (telefon Wi-Fi ölçümü için)")
     asyncio.run(run(p.parse_args()))
 
 

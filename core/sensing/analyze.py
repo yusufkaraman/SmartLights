@@ -19,7 +19,7 @@ def summarize(path: str) -> str:
     t0 = min(r["t"] for r in rows)
     t1 = max(r["t"] for r in rows)
     out = [f"Kayıt: {path}", f"Süre: {(t1 - t0) / 60:.1f} dk, {len(rows)} satır"]
-    for src in ("wiz_poll", "wiz_push", "tapo", "pc_wifi", "pc_idle"):
+    for src in ("wiz_poll", "wiz_push", "tapo", "pc_wifi", "phone_wifi", "pc_idle"):
         rs = by.get(src, [])
         if not rs:
             continue
