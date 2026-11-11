@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -122,12 +123,15 @@ private fun optimistic(l:Light,kind:String,v:Int)=when(kind) { "power"->l.copy(o
  // Voice: Android's speech recognizer (on-device on Pixel) gives the text inside the app,
  // the same assistant reads it, and the result is spoken back. Asks for the microphone permission once.
  val voice=remember { Voice(context) }
+ // A voice session is one tap of the mic: listening → thinking → spoken answer, shown in the pop-up.
+ var voiceSession by remember { mutableStateOf(false) }
+ var voiceNote by remember { mutableStateOf("") }
  DisposableEffect(Unit) { onDispose { voice.close() } }
  fun ask(text:String,speak:Boolean=false) { scope.launch {
   assistant=assistant.copy(busy=true,reply=null)
   val plan=Assistant.interpret(text,lights.filter { it.online })
   AppLog.i("Asistan","Komut: \"$text\" → ${Assistant.describe(plan)}","source" to plan.source,"targets" to plan.targets.joinToString(",") { it.ref() },"ms" to plan.ms)
-  if(plan.empty || plan.targets.isEmpty()) { assistant=assistant.copy(busy=false,reply="Anlayamadım: \"$text\" (${plan.source})"); if(speak) voice.say("Anlayamadım"); return@launch }
+  if(plan.empty || plan.targets.isEmpty()) { assistant=assistant.copy(busy=false,reply="Anlayamadım: \"$text\" (${plan.source})"); if(speak) { voiceNote="Anlayamadım"; voice.say("Anlayamadım") }; return@launch }
   plan.targets.forEach { l ->
    if(plan.on==false) { command(l,"power",0); return@forEach }
    plan.scene?.let { applyReady(it,listOf(l)) }
@@ -136,15 +140,19 @@ private fun optimistic(l:Light,kind:String,v:Int)=when(kind) { "power"->l.copy(o
    if(plan.on==true && plan.scene==null && plan.brightness==null && plan.hue==null && plan.kelvin==null) command(l,"power",1)
   }
   assistant=assistant.copy(busy=false,reply=Assistant.describe(plan))
-  if(speak) voice.say(Assistant.describe(plan))
+  if(speak) { voiceNote=Assistant.describe(plan); voice.say(voiceNote) }
  } }
- fun listenNow() { voice.listen({ heard -> AppLog.i("Asistan","Sesli komut: \"$heard\""); ask(heard,speak=true) },{ msg -> assistant=assistant.copy(busy=false,reply=msg) }) }
+ fun listenNow() { voice.listen({ heard -> AppLog.i("Asistan","Sesli komut: \"$heard\""); ask(heard,speak=true) },{ msg -> voiceNote=msg; assistant=assistant.copy(busy=false,reply=msg) }) }
+ // The pop-up closes itself once nothing is happening any more (a short pause lets the answer be read).
+ LaunchedEffect(voiceSession,voice.phase,assistant.busy) { if(voiceSession && voice.phase==Voice.Phase.Idle && !assistant.busy) { delay(1700); voiceSession=false } }
+ fun dismissVoice() { voice.hush(); voiceSession=false }
  val micPermission=androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
-  if(ok) listenNow() else assistant=assistant.copy(reply="Sesli komut için mikrofon izni gerekli")
+  if(ok) listenNow() else { voiceNote="Sesli komut için mikrofon izni gerekli"; assistant=assistant.copy(reply=voiceNote) }
  }
  // Tap the mic: listen inside the app (orb + live text). Tap again while listening: finish and send what was heard.
  fun startVoice() {
   if(voice.phase==Voice.Phase.Listening) { voice.stop(); return }
+  voiceNote=""; voiceSession=true
   if(androidx.core.content.ContextCompat.checkSelfPermission(context,android.Manifest.permission.RECORD_AUDIO)==android.content.pm.PackageManager.PERMISSION_GRANTED) listenNow()
   else micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
  }
@@ -163,12 +171,20 @@ private fun optimistic(l:Light,kind:String,v:Int)=when(kind) { "power"->l.copy(o
   val current=resolve(selected)
   BackHandler(enabled=current!=null) { selected=null }
   Box(Modifier.fillMaxSize().background(Amber.bg)) {
-   AnimatedContent(targetState=current?.id,transitionSpec={ (fadeIn(tween(180))+slideInHorizontally(tween(260)) { if(targetState!=null) it/6 else -it/6 }) togetherWith fadeOut(tween(120)) },label="screen") { id ->
+   val blur by androidx.compose.animation.core.animateDpAsState(if(voiceSession) 22.dp else 0.dp,tween(320),label="blur")
+   AnimatedContent(modifier=Modifier.blur(blur),targetState=current?.id,transitionSpec={ (fadeIn(tween(180))+slideInHorizontally(tween(260)) { if(targetState!=null) it/6 else -it/6 }) togetherWith fadeOut(tween(120)) },label="screen") { id ->
     val light=resolve(id)
     if(light==null) Home(lights,favorites,scanning,pending,sceneNames,dark,themeChoice,systemSeed,{ scope.launch { refresh() } },{ selected=it },{ l,on -> command(l,"power",if(on) 1 else 0) },{ on -> lights.filter { it.online }.forEach { command(it,"power",if(on) 1 else 0) } },{ applyReady(it) },{ applyScene(it) },{ store.removeScene(it); sceneNames=store.scenes().keys().asSequence().toList() },{ manual=true },{ saveScene=true },{ credentials=true },{ dark=it; store.putFlag("light_mode",!it) },{ themeChoice=it; store.putLong("theme_seed",it) },{ l -> store.hide(l); hiddenCount=store.hidden().size; lights=lights.filter { it.id!=l.id }; DualLightsWidget.renderAll(context) },hiddenCount,{ store.unhideAll(); hiddenCount=0; scope.launch { refresh() } },{ logs=true },assistant,{ ask(it) },{ startVoice() },voice,{ l,v -> (if(l==null) lights.filter { it.online && it.on } else listOf(l)).forEach { command(it,"brightness",v,instant=true) } })
     else Detail(light,if(light.id==ALL_LIGHTS) lights else listOf(light),light.id in favorites,store,{ l,kind,value -> command(l,kind,value) },{ l,kind,value -> command(l,kind,value,instant=true) },{ setFade(it) },{ selected=null },{ fav -> store.setFavorite(light.id,fav); favorites=store.favorites() },{ scope.launch { refresh() } },{ name -> store.setName(light.id,name); lights=store.named(lights); store.save(lights); DualLightsWidget.renderAll(context) })
    }
   }
+ var orbState by remember { mutableStateOf(OrbState.Listening) }
+  when { voice.phase==Voice.Phase.Listening->orbState=OrbState.Listening; assistant.busy && voiceSession->orbState=OrbState.Solving; voice.phase==Voice.Phase.Speaking->orbState=OrbState.Breathing }
+  val listeningNow=voice.phase==Voice.Phase.Listening
+  VoiceOverlay(voiceSession,orbState,{ voice.level },voice.partial,
+   when { listeningNow->"Konuşabilirsin · bitince sus ya da Bitti'ye dokun"; assistant.busy->"Düşünüyorum…"; else->voiceNote },
+   listeningNow,Amber,{ voice.stop() },{ dismissVoice() })
+  BackHandler(voiceSession) { dismissVoice() }
   AnimatedVisibility(logs,enter=fadeIn(tween(160))+slideInVertically(tween(260)) { it/8 },exit=fadeOut(tween(140))+slideOutVertically(tween(200)) { it/8 }) { LogScreen { logs=false } }
   val field=OutlinedTextFieldDefaults.colors(focusedBorderColor=Amber.primary,focusedLabelColor=Amber.primary,cursorColor=Amber.primary)
   if(error!=null) AlertDialog(onDismissRequest={error=null},containerColor=Amber.cont,confirmButton={TextButton(onClick={error=null}){Text("Tamam",color=Amber.primary)}},dismissButton={TextButton(onClick={error=null; logs=true}){Text("Kayıtları gör",color=Ink)}},title={Text("Bağlantı")},text={Text(error!!)})

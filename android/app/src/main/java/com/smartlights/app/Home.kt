@@ -194,12 +194,7 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
  Surface(shape=RoundedCornerShape(28.dp),color=t.cont,modifier=Modifier.fillMaxWidth()) {
   Column(Modifier.padding(start=16.dp,end=8.dp,top=6.dp,bottom=12.dp)) {
    Row(verticalAlignment=Alignment.CenterVertically) {
-    // The orb shows what the assistant is doing: listening to the voice, thinking (Gemini Nano), or answering.
-    Box(Modifier.size(28.dp),contentAlignment=Alignment.Center) {
-     androidx.compose.animation.Crossfade(when { listening->OrbState.Listening; a.busy->OrbState.Solving; speaking->OrbState.Breathing; else->null },label="orb") { st ->
-      if(st==null) Ico(P.sparkle,t.primary,22.dp) else Orb(st,t.primary,size=28.dp,level={ voice?.level ?: 0f })
-     }
-    }
+    Ico(P.sparkle,t.primary,22.dp)
     TextField(if(listening) voice?.partial ?: "" else text,{ if(!listening) text=it },readOnly=listening,modifier=Modifier.weight(1f),singleLine=true,textStyle=ts(16,color=Ink),placeholder={ Text(if(listening) "Dinliyorum…" else "Örn: salonu loş sıcak beyaz yap",style=ts(15,color=InkVariant),maxLines=1,overflow=TextOverflow.Ellipsis) },
      keyboardOptions=KeyboardOptions(imeAction=ImeAction.Send),keyboardActions=KeyboardActions(onSend={ send() }),
      colors=TextFieldDefaults.colors(focusedContainerColor=Color.Transparent,unfocusedContainerColor=Color.Transparent,focusedIndicatorColor=Color.Transparent,unfocusedIndicatorColor=Color.Transparent,cursorColor=t.primary))

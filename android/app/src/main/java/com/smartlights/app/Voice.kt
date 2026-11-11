@@ -40,6 +40,8 @@ class Voice(context:Context) {
  /** Finish now and use what was heard so far. */
  fun stop() { recognizer?.stopListening() }
  fun cancel() { recognizer?.cancel(); release(); phase=Phase.Idle; level=0f }
+ /** Stop listening and stop talking (the pop-up was dismissed). */
+ fun hush() { cancel(); tts.stop() }
 
  private fun start(preferOnDevice:Boolean,onText:(String)->Unit,onFail:(String)->Unit) {
   release(); tts.stop()
