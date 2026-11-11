@@ -2,9 +2,13 @@
 
 # 💡 SmartLights
 
-**A native Windows app to control WiZ and Tapo smart lights — no cloud, no Home Assistant, just your PC and your LAN.**
+**Native Windows and Android apps to control WiZ and Tapo smart lights — no cloud, no Home Assistant, just your devices and your LAN.**
 
-[🇬🇧 English](#-english) · [🇹🇷 Türkçe](#-türkçe)
+[🇬🇧 English](#-english) · [🇹🇷 Türkçe](#-türkçe) · [📱 Download the Android APK](https://github.com/yusufkaraman/SmartLights/releases/latest/download/SmartLights.apk)
+
+<img src="android/screenshots/home.png" alt="Android home screen" width="270"> &nbsp; <img src="android/screenshots/all-lights.png" alt="Android All lights screen" width="270">
+
+<sub>Android app: home screen and the "All lights" screen</sub>
 
 </div>
 
@@ -25,7 +29,7 @@ SmartLights is a Windows desktop application (PySide6 + Qt Quick/QML) that disco
 - 🔐 Tapo credentials are stored in the **Windows Credential Locker** (via `keyring`), never written to disk in plain text
 - ⚙️ Optional autostart with Windows, with a "start minimized to tray" option
 - 🛡️ Graceful error handling — Wi-Fi down, firewall blocking UDP broadcast, wrong Tapo credentials, etc. all surface as clear, actionable messages instead of silent failures or crashes
-- 📱 **Android app** (~8.6 MB, in [`android/`](android/README.md)) — the same local control on the phone, an "All lights" screen that changes every bulb at once, Tapo account status, an in-app log console and home-screen widgets
+- 📱 **Android app** (~9.5 MB, in [`android/`](android/README.md)) — the same local control on the phone: an "All lights" screen that changes every bulb at once, swipe sideways on a card to dim, modes that look the same on WiZ and Tapo, WiZ dimming below 10%, voice and typed commands (on-device Gemini Nano), Tapo account status, an in-app log console and home-screen widgets. Every push to `main` builds the APK with GitHub Actions: [latest APK](https://github.com/yusufkaraman/SmartLights/releases/latest/download/SmartLights.apk)
 
 ### Tech stack
 
@@ -112,7 +116,7 @@ SmartLights, **WiZ** ve **Tapo** akıllı ampullerini doğrudan yerel ağınız 
 - 🔐 Tapo hesap bilgileri **Windows Credential Locker**'da saklanır (`keyring` ile), asla düz metin olarak diske yazılmaz
 - ⚙️ İsteğe bağlı Windows başlangıcında otomatik başlatma, "tray'de küçültülmüş başlat" seçeneğiyle birlikte
 - 🛡️ Düzgün hata yönetimi — Wi-Fi yok, güvenlik duvarı UDP yayınını engelliyor, yanlış Tapo şifresi gibi durumlar sessizce başarısız olmak yerine anlaşılır, aksiyon alınabilir mesajlarla bildirilir
-- 📱 **Android uygulaması** (~8.6 MB, [`android/`](android/README.md) klasöründe) — telefonda aynı yerel kontrol, tüm ampulleri birden değiştiren "Tüm ışıklar" ekranı, Tapo hesap durumu, uygulama içi kayıt konsolu ve ana ekran widget'ları
+- 📱 **Android uygulaması** (~9.5 MB, [`android/`](android/README.md) klasöründe) — telefonda aynı yerel kontrol: tüm ampulleri birden değiştiren "Tüm ışıklar" ekranı, kartın üstünde parmağı sağa-sola kaydırarak parlaklık, WiZ ve Tapo'da aynı görünen modlar, WiZ'de %10 altı parlaklık, sesli ve yazılı komut (cihaz üzerinde Gemini Nano), Tapo hesap durumu, uygulama içi kayıt konsolu ve ana ekran widget'ları. `main`'e her push'ta APK GitHub Actions ile derlenir: [son APK](https://github.com/yusufkaraman/SmartLights/releases/latest/download/SmartLights.apk)
 
 ### Teknoloji seçimleri
 
