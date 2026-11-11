@@ -163,10 +163,10 @@ object Widgets {
   val targets=when(op) { "scene","alloff"->before.filter { it.online || it.ip.isNotBlank() }; else->before.filter { it.id==lightId } }
   val planned=targets.map { l -> l to when(op) {
    "toggle"->listOf("power" to if(l.on) 0 else 1)
-   "bri"->listOf("brightness" to (l.brightness+value).coerceIn(if(l.brand=="wiz") 10 else 1,100))
+   "bri"->listOf("brightness" to (l.brightness+value).coerceIn(1,100))
    "kelvin"->listOf("kelvin" to if(l.brand=="tapo") value.coerceIn(2500,6500) else value)
    "alloff"->listOf("power" to 0)
-   "scene"->readyScenes.getOrNull(value)?.let { r -> listOf("brightness" to if(l.brand=="wiz") r.bri.coerceAtLeast(10) else r.bri)+when { r.wiz>0 && l.brand=="wiz"->listOf("scene" to r.wiz); r.kelvin>0->listOf("kelvin" to if(l.brand=="tapo") r.kelvin.coerceIn(2500,6500) else r.kelvin); else->listOf("color" to r.hue*101+r.sat) } } ?: emptyList()
+   "scene"->readyScenes.getOrNull(value)?.let { r -> listOf("brightness" to r.bri)+when { r.wiz>0 && l.brand=="wiz"->listOf("scene" to r.wiz); r.kelvin>0->listOf("kelvin" to if(l.brand=="tapo") r.kelvin.coerceIn(2500,6500) else r.kelvin); else->listOf("color" to r.hue*101+r.sat) } } ?: emptyList()
    else->emptyList() } }
   fun apply(l:Light,kind:String,v:Int)=when(kind) { "power"->l.copy(on=v==1); "brightness"->l.copy(on=true,brightness=v); "kelvin"->l.copy(on=true,kelvin=v,colorMode=false,scene=0); "color"->l.copy(on=true,hue=v/101,saturation=v%101,colorMode=true,scene=0); "scene"->l.copy(on=true,scene=v,colorMode=false); else->l }
   val after=before.map { l -> planned.find { it.first.id==l.id }?.second?.fold(l) { acc,(k,v) -> apply(acc,k,v) } ?: l }

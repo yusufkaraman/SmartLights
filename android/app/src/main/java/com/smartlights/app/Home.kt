@@ -1,5 +1,9 @@
 package com.smartlights.app
 
+import kotlin.math.roundToInt
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +33,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,7 +58,7 @@ fun seedColor(choice:Long,system:Color)=if(choice==0L) system else Color(choice)
 private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(0xFF6B4A00) to Color(0xFFFFDEA6),Color(0xFF1F2D3D) to Color(0xFFD1E4FF),Color(0xFF5A1F3A) to Color(0xFFFFD9E3))
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable fun Home(lights:List<Light>,favorites:Set<String>,scanning:Boolean,pending:Set<String>,scenes:List<String>,dark:Boolean,themeChoice:Long,systemSeed:Color,onRefresh:()->Unit,onOpen:(String)->Unit,onToggle:(Light,Boolean)->Unit,onAll:(Boolean)->Unit,onReady:(Ready)->Unit,onScene:(String)->Unit,onDeleteScene:(String)->Unit,onAddIp:()->Unit,onSaveScene:()->Unit,onAccount:()->Unit,onDark:(Boolean)->Unit,onTheme:(Long)->Unit,onRemove:(Light)->Unit,hiddenCount:Int,onUnhide:()->Unit,onLog:()->Unit) {
+@Composable fun Home(lights:List<Light>,favorites:Set<String>,scanning:Boolean,pending:Set<String>,scenes:List<String>,dark:Boolean,themeChoice:Long,systemSeed:Color,onRefresh:()->Unit,onOpen:(String)->Unit,onToggle:(Light,Boolean)->Unit,onAll:(Boolean)->Unit,onReady:(Ready)->Unit,onScene:(String)->Unit,onDeleteScene:(String)->Unit,onAddIp:()->Unit,onSaveScene:()->Unit,onAccount:()->Unit,onDark:(Boolean)->Unit,onTheme:(Long)->Unit,onRemove:(Light)->Unit,hiddenCount:Int,onUnhide:()->Unit,onLog:()->Unit,assistant:AssistantUi=AssistantUi(),onAsk:(String)->Unit={},onVoice:()->Unit={},onLevel:(Light?,Int)->Unit={ _,_ -> }) {
  val t=Amber
  var fabOpen by remember { mutableStateOf(false) }
  var themeSheet by remember { mutableStateOf(false) }
@@ -80,7 +87,8 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
      }
      Spacer(Modifier.height(20.dp))
      ConnectedGroup(listOf("Tümünü aç","Tümünü kapat"),allMode,t,{ allMode=it; onAll(it==0) },Modifier.fillMaxWidth(),height=56.dp,grow=1.35f,textSize=16)
-     Spacer(Modifier.height(20.dp))
+     Spacer(Modifier.height(12.dp))
+     if(lights.isNotEmpty()) { AskBar(assistant,t,onAsk,onVoice); Spacer(Modifier.height(20.dp)) } else Spacer(Modifier.height(8.dp))
     }
     if(lights.isEmpty()) item {
      Surface(shape=RoundedCornerShape(28.dp),color=t.cont) { Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -88,8 +96,8 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
      } }
      Spacer(Modifier.height(20.dp))
     }
-    if(sorted.size>1) item(key=ALL_LIGHTS) { GroupCard(sorted,t,{ onOpen(ALL_LIGHTS) },{ onAll(it) }); Spacer(Modifier.height(10.dp)) }
-    items(sorted,key={it.id}) { light -> LightCard(light,light.id in favorites,light.id in pending,t,{onOpen(light.id)},{onToggle(light,it)},{removing=light}); Spacer(Modifier.height(10.dp)) }
+    if(sorted.size>1) item(key=ALL_LIGHTS) { GroupCard(sorted,t,{ onOpen(ALL_LIGHTS) },{ onAll(it) }) { onLevel(null,it) }; Spacer(Modifier.height(10.dp)) }
+    items(sorted,key={it.id}) { light -> LightCard(light,light.id in favorites,light.id in pending,t,{onOpen(light.id)},{onToggle(light,it)},{removing=light}) { onLevel(light,it) }; Spacer(Modifier.height(10.dp)) }
     item {
      Spacer(Modifier.height(10.dp))
      Text("Sahneler",style=ts(22,FontWeight.Medium,Ink)); Spacer(Modifier.height(12.dp))
@@ -176,9 +184,33 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
  }
 }
 
+// Typed commands such as "salonu loş sıcak beyaz yap"; Gemini Nano reads them when the phone has it.
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable private fun AskBar(a:AssistantUi,t:Tone,onAsk:(String)->Unit,onVoice:()->Unit) {
+ var text by remember { mutableStateOf("") }
+ val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+ fun send() { if(text.isNotBlank() && !a.busy) { onAsk(text.trim()); keyboard?.hide() } }
+ Surface(shape=RoundedCornerShape(28.dp),color=t.cont,modifier=Modifier.fillMaxWidth()) {
+  Column(Modifier.padding(start=16.dp,end=8.dp,top=6.dp,bottom=12.dp)) {
+   Row(verticalAlignment=Alignment.CenterVertically) {
+    Ico(P.sparkle,t.primary,22.dp)
+    TextField(text,{ text=it },modifier=Modifier.weight(1f),singleLine=true,textStyle=ts(16,color=Ink),placeholder={ Text("Örn: salonu loş sıcak beyaz yap",style=ts(15,color=InkVariant),maxLines=1,overflow=TextOverflow.Ellipsis) },
+     keyboardOptions=KeyboardOptions(imeAction=ImeAction.Send),keyboardActions=KeyboardActions(onSend={ send() }),
+     colors=TextFieldDefaults.colors(focusedContainerColor=Color.Transparent,unfocusedContainerColor=Color.Transparent,focusedIndicatorColor=Color.Transparent,unfocusedIndicatorColor=Color.Transparent,cursorColor=t.primary))
+    Box(Modifier.size(44.dp),contentAlignment=Alignment.Center) {
+     if(a.busy) LoadingIndicator(Modifier.size(32.dp),color=t.primary)
+     // Empty field: the button listens instead (speech → Gemini Nano → spoken reply).
+     else Surface(onClick={ if(text.isNotBlank()) send() else onVoice() },shape=CircleShape,color=t.primary,modifier=Modifier.size(40.dp)) { Box(contentAlignment=Alignment.Center) { if(text.isNotBlank()) Ico(P.chevron,t.onPrimary,20.dp,2.2f) else Ico(P.mic,t.onPrimary,20.dp,2f) } }
+    }
+   }
+   Text(a.reply ?: a.status,style=ts(13,color=InkVariant),maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(start=34.dp,end=8.dp))
+  }
+ }
+}
+
 // Opens one detail screen whose changes go to every light at once.
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable private fun GroupCard(lights:List<Light>,t:Tone,onOpen:()->Unit,onToggle:(Boolean)->Unit) {
+@Composable private fun GroupCard(lights:List<Light>,t:Tone,onOpen:()->Unit,onToggle:(Boolean)->Unit,onLevel:(Int)->Unit) {
  val g=groupLight(lights)
  val on=g.on && g.online
  val lc=Catalog.lightColor(g)
@@ -186,7 +218,7 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
  val bg by animateColorAsState(if(on) ct.cont else t.cont,ColorTween,label="gcard")
  val ink by animateColorAsState(ct.ink,ColorTween,label="gink"); val inkVar by animateColorAsState(ct.inkVar,ColorTween,label="ginkVar")
  val online=lights.count { it.online }
- Surface(onClick=onOpen,shape=RoundedCornerShape(28.dp),color=bg,modifier=Modifier.fillMaxWidth()) {
+ Surface(onClick=onOpen,shape=RoundedCornerShape(28.dp),color=bg,modifier=Modifier.fillMaxWidth().swipeLevel(g.brightness,on,onLevel)) {
   Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
    Row(verticalAlignment=Alignment.CenterVertically) {
     Box(Modifier.size(52.dp)) {
@@ -207,7 +239,7 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
 
 // An on light's card takes the light's own color, and the tinted band shows its brightness.
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class)
-@Composable private fun LightCard(light:Light,favorite:Boolean,pending:Boolean,t:Tone,onOpen:()->Unit,onToggle:(Boolean)->Unit,onRemove:()->Unit) {
+@Composable private fun LightCard(light:Light,favorite:Boolean,pending:Boolean,t:Tone,onOpen:()->Unit,onToggle:(Boolean)->Unit,onRemove:()->Unit,onLevel:(Int)->Unit) {
  val on=light.on && light.online
  val lc=Catalog.lightColor(light)
  val ct=if(on) toneFrom(lc,t.dark) else t
@@ -215,7 +247,7 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
  val band by animateColorAsState(if(on) lc.copy(alpha=if(t.dark) .30f else .45f) else lc.copy(alpha=0f),ColorTween,label="band")
  val level by animateFloatAsState(if(on) light.brightness.coerceIn(1,100)/100f else 0f,Fast,label="level")
  val ink by animateColorAsState(ct.ink,ColorTween,label="ink"); val inkVar by animateColorAsState(ct.inkVar,ColorTween,label="inkVar")
- Surface(shape=RoundedCornerShape(28.dp),color=bg,modifier=Modifier.fillMaxWidth()) {
+ Surface(shape=RoundedCornerShape(28.dp),color=bg,modifier=Modifier.fillMaxWidth().swipeLevel(light.brightness,on,onLevel)) {
   Column(Modifier.drawBehind { drawRect(band,size=Size(size.width*level,size.height)) }.combinedClickable(onClick=onOpen,onLongClick=onRemove).padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
    Row(verticalAlignment=Alignment.CenterVertically) {
     Box(Modifier.size(52.dp),contentAlignment=Alignment.Center) {
@@ -230,6 +262,23 @@ private val userSceneColors=listOf(Color(0xFF3E3360) to Color(0xFFEADDFF),Color(
     Switch(checked=on,onCheckedChange=onToggle,enabled=light.online,colors=toneSwitchColors(ct))
    }
    if(pending) LinearWavyProgressIndicator(Modifier.fillMaxWidth(),color=ct.primary,trackColor=Color.Transparent)
+  }
+ }
+}
+
+// Sliding a finger sideways on a lit card dims or brightens it: a full card width is 100 points,
+// relative to where the drag started, so a small drag nudges the level instead of jumping.
+@Composable private fun Modifier.swipeLevel(level:Int,enabled:Boolean,onLevel:(Int)->Unit):Modifier {
+ val current by rememberUpdatedState(level); val send by rememberUpdatedState(onLevel)
+ val haptic=androidx.compose.ui.platform.LocalHapticFeedback.current
+ var width by remember { mutableIntStateOf(1) }
+ return onSizeChanged { width=it.width.coerceAtLeast(1) }.pointerInput(enabled) {
+  if(!enabled) return@pointerInput
+  var start=0f; var moved=0f; var last=-1
+  detectHorizontalDragGestures(onDragStart={ start=current.toFloat(); moved=0f; last=current }) { change,dx ->
+   change.consume(); moved+=dx
+   val v=(start+moved/width*100f).roundToInt().coerceIn(1,100)
+   if(v!=last) { if((v==1 || v==100) && last!=v) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove); last=v; send(v) }
   }
  }
 }

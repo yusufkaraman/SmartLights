@@ -1,6 +1,6 @@
 # SmartLights Android
 
-Native Android app for local WiZ and Tapo lights. Build with Android Studio or Gradle 8.14, JDK 17 or newer and Android SDK 36. The release APK is about 8.6 MB and must stay under 50 MB.
+Native Android app for local WiZ and Tapo lights. Build with Android Studio or Gradle 8.14, JDK 17 or newer and Android SDK 36. The release APK is about 9.5 MB and must stay under 50 MB. The command bar on the home screen uses Gemini Nano through AICore (ML Kit Prompt API) when the phone has it, and a Turkish keyword parser otherwise.
 
 The included `app/libs/bridge.aar` is the arm64 Go bridge for Tapo. Rebuild it with Go 1.26, Android NDK and this command from `bridge/` after editing the bridge:
 
@@ -17,6 +17,13 @@ This build cannot guarantee compatibility with every model, firmware or network.
 ## Tüm ışıklar
 
 Ana ekranda iki veya daha fazla ışık varsa listenin başında **Tüm ışıklar** kartı görünür. Kart, tek ışığın detay ekranıyla aynı ekranı açar: parlaklık, beyaz ton, renk, dinamik sahneler ve zamanlayıcı. Burada yapılan her değişiklik bağlı ışıkların hepsine aynı anda gönderilir. Kelvin değeri her ışığın kendi aralığına sığdırılır (Tapo 2500–6500 K, WiZ 2200–6500 K). Enerji kartı yalnızca Tapo ampullerin toplamını gösterir.
+
+## Yumuşak geçiş
+
+Detay ekranındaki **Zamanlayıcı** bölümünde **Yumuşak geçiş** seçilir: Anında, 1 sn veya 2 sn. Ayar tüm ışıklar içindir. Parlaklık düğmeleri, ton ve renk seçimleri, sahneler ve açma/kapama bu sürede kademeli uygulanır; kaydırıcıyı sürüklerken ışık parmağı anında izler.
+
+- **Tapo:** açma/kapama geçişini ampulün kendi ayarı (`set_on_off_gradually_info`) yapar, bu yüzden widget ve Tapo uygulamasından açıp kapatırken de geçerlidir. Parlaklık, ton ve renk uygulama tarafından adım adım gönderilir.
+- **WiZ:** ampul bu ayarı yerel ağdan kabul etmez, bu yüzden her şeyi uygulama adım adım gönderir. Kapatırken parlaklık %1'e inip ampul kapanır; açarken kayıtlı parlaklığa geri çıkar. Duvar anahtarı veya WiZ uygulamasıyla açılırsa ampul %1'de yanabilir.
 
 ## Tapo hesabı
 

@@ -22,5 +22,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation(files("libs/bridge.aar"))
+    // Gemini Nano via AICore: the model lives in the system, only the client library ships in the APK.
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta5")
 }
 

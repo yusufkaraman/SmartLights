@@ -15,6 +15,12 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import kotlin.math.roundToInt
+
+// WiZ output floor and the color temperatures of its warm and cold white LEDs (getModelConfig cctRange).
+const val WIZ_FLOOR=10
+const val WIZ_WARM=2700
+const val WIZ_COLD=6500
 
 data class Light(val id:String, val ip:String, val name:String, val brand:String, val model:String="", val online:Boolean=false, val on:Boolean=false, val brightness:Int=50, val hue:Int=0, val saturation:Int=100, val kelvin:Int=4000, val colorMode:Boolean=false, val scene:Int=0, val rssi:Int=0) {
  fun json() = JSONObject().put("id",id).put("ip",ip).put("name",name).put("brand",brand).put("model",model).put("on",on).put("brightness",brightness).put("hue",hue).put("saturation",saturation).put("kelvin",kelvin).put("colorMode",colorMode).put("scene",scene)
@@ -103,11 +109,42 @@ object Network {
   return lights.distinctBy { it.id }
  }
  fun state(context:Context,light:Light):Light {
-  if(light.brand=="wiz") { val j=wiz(light.ip,"getPilot").getJSONObject("result"); val rgb=j.has("r") && j.optInt("temp",0)==0; val hsv=FloatArray(3); if(rgb) android.graphics.Color.RGBToHSV(j.optInt("r"),j.optInt("g"),j.optInt("b"),hsv); return light.copy(online=true,on=j.optBoolean("state"),brightness=(j.optInt("dimming",50)),hue=if(rgb) hsv[0].toInt() else light.hue,saturation=if(rgb) (hsv[1]*100).toInt() else light.saturation,kelvin=j.optInt("temp",light.kelvin).takeIf{it>0} ?: light.kelvin,colorMode=rgb,scene=j.optInt("sceneId"),rssi=j.optInt("rssi")) }
+  if(light.brand=="wiz") {
+   val j=wiz(light.ip,"getPilot").getJSONObject("result")
+   val r=j.optInt("r"); val g=j.optInt("g"); val b=j.optInt("b"); val c=j.optInt("c"); val w=j.optInt("w")
+   // Sub-10% white is sent as raw warm/cold channels (see wizPilot), which the bulb reports back without "temp".
+   val raw=j.optInt("temp",0)==0 && r+g+b==0 && c+w>0
+   val rgb=!raw && j.has("r") && j.optInt("temp",0)==0
+   val hsv=FloatArray(3); if(rgb) android.graphics.Color.RGBToHSV(r,g,b,hsv)
+   // Scenes such as Night light leave "dimming" out; keep the last known level instead of jumping to 50.
+   val dim=j.optInt("dimming",light.brightness)
+   val bri=when { raw -> (dim*(c+w)/255f).roundToInt(); rgb && dim<=WIZ_FLOOR -> (dim*maxOf(r,g,b)/255f).roundToInt(); else -> dim }.coerceIn(1,100)
+   val kelvin=if(raw) (WIZ_WARM+(WIZ_COLD-WIZ_WARM)*c/(c+w))/100*100 else j.optInt("temp",light.kelvin).takeIf{it>0} ?: light.kelvin
+   return light.copy(online=true,on=j.optBoolean("state"),brightness=bri,hue=if(rgb) hsv[0].toInt() else light.hue,saturation=if(rgb) (hsv[1]*100).toInt() else light.saturation,kelvin=if(raw && light.kelvin<WIZ_WARM) light.kelvin else kelvin,colorMode=rgb,scene=j.optInt("sceneId"),rssi=j.optInt("rssi"))
+  }
   val (email,password)=Store(context).credentials() ?: throw IllegalStateException("Tapo hesabı gerekli")
   val j=JSONObject(TapoAccount.request(context,light.ip,light.name,email,password,"get_device_info",""))
   val name=try { String(Base64.decode(j.optString("nickname"),Base64.DEFAULT)) } catch (_:Exception) { light.name }
   return light.copy(id=j.optString("device_id",light.id),name=name.ifBlank { light.name },online=true,on=j.optBoolean("device_on"),brightness=j.optInt("brightness",50),hue=j.optInt("hue"),saturation=j.optInt("saturation",100),kelvin=j.optInt("color_temp",4000).takeIf{it>0} ?: 4000,colorMode=j.optInt("color_temp",0)==0,scene=0,rssi=j.optInt("rssi"))
+ }
+ // Logs what a bulb really shows after a mode or color change: raw kelvin / rgb / brightness from the bulb itself,
+ // so WiZ and Tapo can be compared side by side in the log screen.
+ fun audit(context:Context,light:Light,mode:String) {
+  try {
+   if(light.brand=="wiz") {
+    val j=wiz(light.ip,"getPilot").getJSONObject("result"); val s=state(context,light)
+    AppLog.i("Doğrulama","$mode → ${light.name}: ${if(!s.on) "kapalı" else if(s.colorMode) "renk ${s.hue}°/%${s.saturation}" else if(s.scene>0) "sahne #${s.scene}" else "${s.kelvin} K"}, %${s.brightness}","light" to light.ref(),"mode" to mode,
+     "on" to s.on,"bri" to s.brightness,"dimming" to j.opt("dimming"),"temp" to j.opt("temp"),"r" to j.opt("r"),"g" to j.opt("g"),"b" to j.opt("b"),"c" to j.opt("c"),"w" to j.opt("w"),"scene" to j.opt("sceneId"),"rssi" to j.opt("rssi"))
+   } else {
+    val (email,password)=Store(context).credentials() ?: return
+    val j=JSONObject(TapoAccount.request(context,light.ip,light.name,email,password,"get_device_info",""))
+    val ct=j.optInt("color_temp"); val on=j.optBoolean("device_on")
+    val rgb=if(ct==0) android.graphics.Color.HSVToColor(floatArrayOf(j.optInt("hue").toFloat(),j.optInt("saturation")/100f,1f)) else null
+    AppLog.i("Doğrulama","$mode → ${light.name}: ${if(!on) "kapalı" else if(ct==0) "renk ${j.optInt("hue")}°/%${j.optInt("saturation")}" else "$ct K"}, %${j.optInt("brightness")}","light" to light.ref(),"mode" to mode,
+     "on" to on,"bri" to j.opt("brightness"),"temp" to (if(ct>0) ct else null),"hue" to j.opt("hue"),"sat" to j.opt("saturation"),
+     "r" to rgb?.let { android.graphics.Color.red(it) },"g" to rgb?.let { android.graphics.Color.green(it) },"b" to rgb?.let { android.graphics.Color.blue(it) },"rssi" to j.opt("rssi"))
+   }
+  } catch (e:Exception) { AppLog.w("Doğrulama","$mode → ${light.name}: durum okunamadı",*AppLog.errorFields(e),"light" to light.ref()) }
  }
  fun usage(context:Context,light:Light):Usage? {
   if(light.brand!="tapo") return null
@@ -120,6 +157,52 @@ object Network {
   val start=System.nanoTime()
   return try { val s=state(context,light); Diagnosis(light.ip,s.rssi.takeIf{it!=0},(System.nanoTime()-start)/1_000_000,true) } catch (_:Exception) { Diagnosis(light.ip,null,null,false) }
  }
+ // Steps a change over `ms` instead of jumping; the last step sends the exact target. Tapo fades power
+ // on the bulb itself (set_on_off_gradually_info); WiZ has no local setting for it, so its power is faded here.
+ suspend fun fade(context:Context,from:Light,kind:String,value:Int,ms:Int,now:()->Light={ from }) {
+  fun lerp(a:Int,b:Int,f:Float)=(a+(b-a)*f).toInt()
+  val min=1
+  val target=from.brightness.coerceIn(min,100)
+  var after:Pair<String,Int>?=null
+  val step:((Float)->Pair<String,Int>)?=when {
+   kind=="brightness" && from.on -> { f -> "brightness" to lerp(from.brightness,value,f) }
+   kind=="kelvin" && from.on && !from.colorMode && from.scene==0 -> { f -> "kelvin" to lerp(from.kelvin,value,f)/50*50 }
+   kind=="color" && from.on && from.colorMode -> { val h0=from.hue; val d=((value/101-h0+540)%360)-180; val s0=from.saturation; { f -> "color" to ((h0+(d*f).toInt()+360)%360)*101+lerp(s0,value%101,f).coerceIn(1,100) } }
+   kind=="power" && from.brand=="wiz" && value==1 && !from.on -> { send(context,now(),"brightness",min); { f -> "brightness" to lerp(min,target,f) } }
+   kind=="power" && from.brand=="wiz" && value==0 && from.on -> { after="power" to 0; { f -> "brightness" to lerp(target,min,f) } }
+   else -> null
+  }
+  // Tapo: every step is a KLAP request of ~300 ms, so a stepped fade is slow and jerky; send the change once.
+  if(step==null || from.brand=="tapo") { set(context,now(),kind,value); return }
+  val t0=System.currentTimeMillis(); var n=0
+  try {
+   while(true) {
+    currentCoroutineContext().ensureActive()
+    val f=((System.currentTimeMillis()-t0).toFloat()/ms).coerceAtMost(1f)
+    val (k,v)=step(f); val s=System.currentTimeMillis(); send(context,now(),k,v); n++
+    if(f>=1f) break
+    delay((70-(System.currentTimeMillis()-s)).coerceAtLeast(10))
+   }
+   after?.let { (k,v) -> send(context,now(),k,v) }
+   AppLog.i("Geçiş","${from.name}: ${describe(kind,value)} (${ms/1000} sn geçiş)","light" to from.ref(),"kind" to kind,"value" to value,"steps" to n,"ms" to System.currentTimeMillis()-t0)
+  } catch (e:CancellationException) { AppLog.i("Geçiş","${from.name}: geçiş yeni bir komutla kesildi","light" to from.ref(),"kind" to kind,"steps" to n); throw e }
+  catch (e:Exception) { AppLog.e("Geçiş","${from.name}: geçiş yarıda kaldı, son değer doğrudan gönderiliyor",e,"light" to from.ref(),"kind" to kind,"steps" to n); set(context,now(),kind,value) }
+ }
+
+ // Tapo bulbs fade their own power on and off; the duration is whole seconds.
+ fun applyPowerFade(context:Context,light:Light,ms:Int) {
+  if(light.brand!="tapo") return
+  val (email,password)=Store(context).credentials() ?: return
+  val secs=ms/1000; val on=secs>0
+  fun call(method:String,params:String)=TapoAccount.request(context,light.ip,light.name,email,password,method,params)
+  fun state()=JSONObject().put("enable",on).apply { if(on) put("duration",secs) }
+  try { call("set_on_off_gradually_info",JSONObject().put("on_state",state()).toString()); call("set_on_off_gradually_info",JSONObject().put("off_state",state()).toString()) }
+  catch (e:Exception) { if(TapoAccount.kind(e)!="dev") throw e; call("set_on_off_gradually_info",JSONObject().put("enable",on).toString()) }
+  val info=try { call("get_on_off_gradually_info","") } catch (_:Exception) { "" }
+  Store(context).putInt("fade_applied_${light.id}",ms)
+  AppLog.i("Geçiş","${light.name}: açma/kapama geçişi ${if(on) "$secs sn" else "kapalı"}","light" to light.ref(),"secs" to secs,"device" to info)
+ }
+
  fun set(context:Context,light:Light,kind:String,value:Int) {
   val t0=System.currentTimeMillis()
   try { send(context,light,kind,value); AppLog.i("Komut","${light.name}: ${describe(kind,value)}","light" to light.ref(),"kind" to kind,"value" to value,"ms" to System.currentTimeMillis()-t0) }
@@ -133,10 +216,32 @@ object Network {
    "hue" to (if(l.colorMode) l.hue else null),"sat" to (if(l.colorMode) l.saturation else null),"scene" to (if(l.scene>0) l.scene else null),
    "rssi" to (if(l.rssi!=0) l.rssi else null),"ms" to ms,"proto" to (if(l.brand=="tapo") Bridge.protocol(l.ip) else "udp"))
  }
+ // WiZ firmware has a 10% output floor (getModelConfig minDimLevel=10), so "dimming" 1-9 looks the same as 10.
+ // Below it, hold dimming at 10 and scale the raw LED channels instead: warm/cold for white, r/g/b for color.
+ private fun lowPilot(l:Light):JSONObject {
+  val total=255f*l.brightness.coerceIn(1,WIZ_FLOOR)/WIZ_FLOOR
+  val p=JSONObject().put("state",true).put("dimming",WIZ_FLOOR)
+  if(l.colorMode) { val c=android.graphics.Color.HSVToColor(floatArrayOf(l.hue.toFloat(),l.saturation/100f,1f)); fun ch(v:Int)=(v*total/255f).roundToInt()
+   return p.put("r",ch(android.graphics.Color.red(c))).put("g",ch(android.graphics.Color.green(c))).put("b",ch(android.graphics.Color.blue(c))).put("c",0).put("w",0) }
+  val f=((l.kelvin-WIZ_WARM).toFloat()/(WIZ_COLD-WIZ_WARM)).coerceIn(0f,1f)
+  val cold=(total*f).roundToInt(); val warm=(total.roundToInt()-cold).coerceAtLeast(if(cold==0) 1 else 0)
+  return p.put("w",warm).put("c",cold)
+ }
+ private fun fullPilot(l:Light):JSONObject {
+  val p=JSONObject().put("state",true).put("dimming",l.brightness.coerceIn(WIZ_FLOOR,100))
+  if(!l.colorMode) return p.put("temp",l.kelvin.coerceIn(2200,6500))
+  val c=android.graphics.Color.HSVToColor(floatArrayOf(l.hue.toFloat(),l.saturation/100f,1f))
+  return p.put("r",android.graphics.Color.red(c)).put("g",android.graphics.Color.green(c)).put("b",android.graphics.Color.blue(c))
+ }
  private fun send(context:Context,light:Light,kind:String,value:Int) {
   val p=JSONObject()
   if(light.brand=="wiz") {
-   when(kind) { "power"->p.put("state",value==1); "brightness"->p.put("state",true).put("dimming",value.coerceIn(10,100)); "color"->p.put("state",true).put("hue",value / 101).put("sat",value % 101); "kelvin"->p.put("state",true).put("temp",value); "scene"->p.put("state",true).put("sceneId",value).put("dimming",light.brightness.coerceIn(10,100)) }
+   val next=when(kind) { "brightness"->light.copy(brightness=value); "kelvin"->light.copy(kelvin=value,colorMode=false,scene=0); "color"->light.copy(hue=value/101,saturation=value%101,colorMode=true,scene=0); "power"->light; else->null }
+   if(next!=null && next.scene==0 && next.brightness<WIZ_FLOOR && (kind!="power" || value==1)) { wiz(light.ip,"setPilot",lowPilot(next)); return }
+   // At 10% and above send the whole white/color state, never "dimming" alone: after a sub-10% command the bulb
+   // is still on the scaled raw channels, and dimming by itself would keep it that dim even at 100%.
+   if(next!=null && next.scene==0 && kind!="power") { wiz(light.ip,"setPilot",fullPilot(next)); return }
+   when(kind) { "power"->{ if(value==1 && Store(context).int("fade_ms")>0 && light.scene==0) { wiz(light.ip,"setPilot",fullPilot(light)); return }; p.put("state",value==1); if(value==1 && Store(context).int("fade_ms")>0) p.put("dimming",light.brightness.coerceIn(1,100)) }; "brightness"->p.put("state",true).put("dimming",value.coerceIn(1,100)); "color"->p.put("state",true).put("hue",value / 101).put("sat",value % 101); "kelvin"->p.put("state",true).put("temp",value); "scene"->p.put("state",true).put("sceneId",value).put("dimming",light.brightness.coerceIn(1,100)) }
    if(kind=="color") { val c=android.graphics.Color.HSVToColor(floatArrayOf((value/101).toFloat(),(value%101)/100f,1f)); p.remove("hue"); p.remove("sat"); p.put("r",android.graphics.Color.red(c)).put("g",android.graphics.Color.green(c)).put("b",android.graphics.Color.blue(c)) }
    wiz(light.ip,"setPilot",p)
   } else {
