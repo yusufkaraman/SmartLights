@@ -7,6 +7,8 @@ android {
     namespace = "com.smartlights.app"
     compileSdk = 36
     defaultConfig { applicationId = "com.smartlights.app"; minSdk = 26; targetSdk = 36; versionCode = 1; versionName = "1.0" }
+    // CI points SIGNING_KEYSTORE at the restored key so phone-installed builds can update each other.
+    signingConfigs { getByName("debug") { System.getenv("SIGNING_KEYSTORE")?.let { storeFile = file(it) } } }
     buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     buildTypes { release { isMinifyEnabled = true; isShrinkResources = true; signingConfig = signingConfigs.getByName("debug"); proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") } }

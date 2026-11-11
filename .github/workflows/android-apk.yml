@@ -42,12 +42,20 @@ jobs:
           KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
         run: |
           if [ -z "$KEYSTORE_B64" ]; then echo "::error::ANDROID_DEBUG_KEYSTORE_B64 secret is missing"; exit 1; fi
-          mkdir -p ~/.android
-          echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/signing.keystore"
+          echo "SIGNING_KEYSTORE=$RUNNER_TEMP/signing.keystore" >> "$GITHUB_ENV"
 
       - name: Build release APK
         working-directory: android
         run: gradle assembleRelease --no-daemon
+
+      # Public fingerprint of the key the phone's installed app is signed with (not a secret).
+      - name: Check signing certificate
+        run: |
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+          got=$("$apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | grep -m1 "SHA-256" | awk '{print $NF}')
+          echo "Certificate: $got"
+          if [ "$got" != "06dbfc57ca2a2bc21373ef16d5352e5f9fa9b23402a98dd1e36eeafbf1cdb519" ]; then echo "::error::APK is signed with the wrong key; it could not update the installed app"; exit 1; fi
 
       - name: Check size (must stay under 50 MB)
         run: |
